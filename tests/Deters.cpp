@@ -1,5 +1,7 @@
 #include "Deters_RMAnalysis_RTAS03.h"
 
+#include <iostream>
+
 int main() {
   struct TaskA {
     enum {
@@ -17,6 +19,8 @@ int main() {
 
   typedef LOKI_TYPELIST_2(TaskA, TaskB) MyTasks;
   const int feasible = RMA_Feasible<MyTasks>::Result;
+
+  std::cout << "The task set is " << (feasible ? "feasible" : "NOT feasible") << std::endl;
 
   return 0;
 }

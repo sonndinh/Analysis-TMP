@@ -2,75 +2,6 @@
 
 using namespace Loki;
 
-template <class TaskSet>
-struct Schedule;
-
-template <class Head, class Tail>
-struct Schedule<Typelist<Head, Tail>>
-{
-  typedef Typelist<Head, Tail> TL;
-
-  enum
-  {
-    feasible = RMA_Feasible<TL>::Result
-  };
-
-  constexpr static const double utilization = Schedule<Tail>::utilization + double(Head::cost) / Head::period;
-
-  static void schedule(void)
-  {
-    /* (not shown) */
-  }
-};
-
-template <>
-struct Schedule<NullType>
-{
-  static const bool Result = true;
-  constexpr static const double utilization = 0.0;
-
-  static void schedule(void)
-  {
-    // no action necessary
-  }
-};
-
-template <class TL, int m, int i>
-struct check_i;
-
-// Recursive case for check_i
-template <class Head, class Tail, int m, int i>
-struct check_i<Typelist<Head, Tail>, m, i>
-{
-  enum
-  {
-    task_result = task_feasible<Typelist<Head, Tail>, i>::Result,
-
-    Result = check_i<Typelist<Head, Tail>, m, i + 1>::Result && task_result
-  };
-};
-
-// Base case for check_i
-template <class Head, class Tail, int m>
-struct check_i<Typelist<Head, Tail>, m, m>
-{
-  enum
-  {
-    Result = task_feasible<Typelist<Head, Tail>, m>::Result
-  };
-};
-
-template <class TaskSet>
-struct RMA_Feasible
-{
-  enum
-  {
-    m = TL::Length<TaskSet>::value,
-
-    Result = check_i<TaskSet, m, 1>::Result
-  };
-};
-
 template <class TL, int i, int t, int j = 0>
 struct sum_j
 {
@@ -143,4 +74,74 @@ struct task_feasible<TL, i, i>
   {
     Result = 0
   };
+};
+
+template <class TL, int m, int i>
+struct check_i;
+
+// Recursive case for check_i
+template <class Head, class Tail, int m, int i>
+struct check_i<Typelist<Head, Tail>, m, i>
+{
+  enum
+  {
+    task_result = task_feasible<Typelist<Head, Tail>, i>::Result,
+
+    Result = check_i<Typelist<Head, Tail>, m, i + 1>::Result && task_result
+  };
+};
+
+// Base case for check_i
+template <class Head, class Tail, int m>
+struct check_i<Typelist<Head, Tail>, m, m>
+{
+  enum
+  {
+    Result = task_feasible<Typelist<Head, Tail>, m>::Result
+  };
+};
+
+
+template <class TaskSet>
+struct RMA_Feasible
+{
+  enum
+  {
+    m = TL::Length<TaskSet>::value,
+
+    Result = check_i<TaskSet, m, 1>::Result
+  };
+};
+
+template <class TaskSet>
+struct Schedule;
+
+template <class Head, class Tail>
+struct Schedule<Typelist<Head, Tail>>
+{
+  typedef Typelist<Head, Tail> TL;
+
+  enum
+  {
+    feasible = RMA_Feasible<TL>::Result
+  };
+
+  constexpr static const double utilization = Schedule<Tail>::utilization + double(Head::cost) / Head::period;
+
+  static void schedule(void)
+  {
+    /* (not shown) */
+  }
+};
+
+template <>
+struct Schedule<NullType>
+{
+  static const bool Result = true;
+  constexpr static const double utilization = 0.0;
+
+  static void schedule(void)
+  {
+    // no action necessary
+  }
 };
