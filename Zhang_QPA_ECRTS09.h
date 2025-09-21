@@ -20,49 +20,85 @@ struct TotalWcet<NullType, 0> {
   enum { Result = 0 };
 };
 
-// Compute L_b
-template <class TList, unsigned int iter>
+// Compute L_b iteratively until convergence. OrigList is the original task set.
+template <class OrigList, class Iter>
 struct Lb;
 
-template <class TList, unsigned int iter, unsigned int i>
+template <class OrigList, class Iter, class RemainList, unsigned int i>
 struct LbHelper {
   enum {
-    SumWcet = TotalWcet<TList, TL::Length<TList>::value>::Result,
+    PrevLb = Lb<OrigList, typename Iter::PrevIter>::Result,
 
-    PrevLb = Lb<TList, iter - 1>::Result,
-
-    Wcet = TList::Head::Wcet,
-    Period = TList::Head::Period,
+    Wcet = RemainList::Head::Wcet,
+    Period = RemainList::Head::Period,
 
     MyValue = ((PrevLb % Period > 0 ? 1 : 0) + (PrevLb / Period)) * Wcet,
 
-    Result = MyValue + LbHelper<TList, iter, i - 1>::Result
+    Result = MyValue + LbHelper<OrigList, Iter, typename RemainList::Tail, i - 1>::Result
   };
 };
 
-template <class TList, unsigned int iter>
-struct LbHelper<TList, iter, 0> {
+template <class OrigList, class Iter>
+struct LbHelper<OrigList, Iter, NullType, 0> {
   enum { Result = 0 };
 };
 
-// TODO: stop the recursion when Lb does not change anymore
-template <class TList, unsigned int iter>
+template <class LbIterationPrev>
+struct LbIteration {
+  typedef LbIterationPrev PrevIter;
+
+  static const unsigned int value = LbIterationPrev::value + 1;
+};
+
+template <>
+struct LbIteration<NullType> {
+  typedef NullType PrevIter;
+
+  static const unsigned int value = 0;
+};
+
+// main can call this with Lb<OrigList, LbIteration<LbIteration<NullType>>>
+// That is, start from the iteration with `value` member of 1.
+// TODO: retrieve the final converged result.
+template <class OrigList, class Iter>
 struct Lb {
   enum {
-    n = TL::Length<TList>::value,
+    n = TL::Length<OrigList>::value,
 
-    Result = LbHelper<TList, iter, n>::Result
+    Result = LbHelper<OrigList, Iter, OrigList, n>::Result,
+
+    PrevResult = LbHelper<OrigList, typename Iter::PrevIter, OrigList, n>::Result,
+
+    Converged = Result == PrevResult
   };
+
+  typedef LbIteration<Iter> NextIter;
+
+  static const bool done = Converged || Lb<OrigList, NextIter>::done;
 };
 
-template <class TList>
-struct Lb<TList, 0> {
+template <class OrigList>
+struct Lb<OrigList, LbIteration<NullType>> {
   enum {
-    Result = TotalWcet<TList, TL::Length<TList>::value>::Result
+    Result = TotalWcet<OrigList, TL::Length<OrigList>::value>::Result,
+    Converged = false
   };
 };
 
-// TODO: static const values can be replaced with constexpr?
+// template <class OrigList>
+// struct LbRoot {
+//   typedef LOKI_TYPELIST_2(LbIteration<NullType>, LbIteration<LbIteration<NullType>>) IterList;
+//   static const int m = TL::Length<IterList>::value;
+//   typedef TL::TypeAt<IterList, m - 1> LastIter;
+
+//   static unsigned int value() {
+//     while (!Lb<OrigList, LastIter>::Converged) {
+//       // TODO: Compute the next iteration
+//     }
+
+//     return Lb<OrigList, LastIter>::Result;
+//   }
+// };
 
 // Compute L_a_star
 template <class TList, unsigned int i>
