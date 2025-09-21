@@ -2,15 +2,6 @@
 
 using namespace Loki;
 
-// Example task format:
-// struct Task {
-//   enum {
-//     Wcet = 10, // worst-case execution time
-//     Deadline = 20, // relative deadline
-//     Period = 25  // period
-//   };
-// };
-
 // Total Wcet of all tasks would be TotalWcet<Taskset, n>,
 // where n is the number of tasks in the taskset, and
 // Taskset is a typelist of all tasks, e.g. LOKI_TYPELIST_3(Task1, Task2, Task3)
@@ -24,6 +15,7 @@ struct TotalWcet<Typelist<Head, Tail>, i> {
   };
 };
 
+template <>
 struct TotalWcet<NullType, 0> {
   enum { Result = 0 };
 };
@@ -78,14 +70,14 @@ struct Numerator {
   static const int Wcet = TList::Head::Wcet;
   static const int Deadline = TList::Head::Deadline;
   static const int Period = TList::Head::Period;
-  static const double value = (static_cast<double>(Wcet) / Period) * (Period - Deadline) + Numerator<TList::Tail, i - 1>::value;
+  constexpr static const double value = (static_cast<double>(Wcet) / Period) * (Period - Deadline) + Numerator<typename TList::Tail, i - 1>::value;
 };
 
 template <class TList, unsigned int i>
 struct TotalUtilization {
   static const int Wcet = TList::Head::Wcet;
   static const int Period = TList::Head::Period;
-  static const double value = (static_cast<double>(Wcet) / Period) + TotalUtilization<TList::Tail, i - 1>::value;
+  constexpr static const double value = (static_cast<double>(Wcet) / Period) + TotalUtilization<typename TList::Tail, i - 1>::value;
 };
 
 template <class TList, unsigned int i>
@@ -94,9 +86,10 @@ struct LaStarHelper {
   static const int Period = TList::Head::Period;
   static const int tmp = Deadline - Period;;
 
-  static const int Result = tmp > LaStarHelper<TList::Tail, i - 1>::Result ? tmp : LaStarHelper<TList::Tail, i - 1>::Result;
+  static const int Result = tmp > LaStarHelper<typename TList::Tail, i - 1>::Result ? tmp : LaStarHelper<typename TList::Tail, i - 1>::Result;
 };
 
+template <>
 struct LaStarHelper<NullType, 0> {
   static const int Result = 0;
 };

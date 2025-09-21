@@ -15,7 +15,7 @@ struct Schedule<Typelist<Head, Tail>>
     feasible = RMA_Feasible<TL>::Result
   };
 
-  static const double utilization = Schedule<Tail>::utilization + double(Head::cost) / Head::period;
+  constexpr static const double utilization = Schedule<Tail>::utilization + double(Head::cost) / Head::period;
 
   static void schedule(void)
   {
@@ -27,7 +27,7 @@ template <>
 struct Schedule<NullType>
 {
   static const bool Result = true;
-  static const double utilization = 0.0;
+  constexpr static const double utilization = 0.0;
 
   static void schedule(void)
   {
@@ -74,7 +74,7 @@ struct RMA_Feasible
 template <class TL, int i, int t, int j = 0>
 struct sum_j
 {
-  typedef typename TypeAt<TL, j>::Result J;
+  typedef typename Loki::TL::TypeAt<TL, j>::Result J;
 
   enum
   {
@@ -102,9 +102,9 @@ struct get_t
 {
   enum
   {
-    Ti = TypeAt<TL, i - 1>::Result::period,
+    Ti = Loki::TL::TypeAt<TL, i - 1>::Result::period,
 
-    Tk = TypeAt<TL, k>::Result::period,
+    Tk = Loki::TL::TypeAt<TL, k>::Result::period,
 
     num_l = Ti / Tk,
 
@@ -144,25 +144,3 @@ struct task_feasible<TL, i, i>
     Result = 0
   };
 };
-
-// Example with two tasks
-int main() {
-  struct TaskA {
-    enum {
-      cost = 5,
-      period = 10
-    };
-  };
-
-  struct TaskB {
-    enum {
-      cost = 5,
-      period = 15
-    };
-  };
-
-  typedef LOKI_TYPELIST_2(TaskA, TaskB) MyTasks;
-  const int feasible = RMA_Feasible<MyTasks>::Result;
-
-  return 0;
-}
