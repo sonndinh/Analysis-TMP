@@ -1,5 +1,7 @@
 #include <loki/Typelist.h>
 
+#include <climits>
+
 using namespace Loki;
 
 using u64 = unsigned long long;
@@ -43,13 +45,13 @@ struct LbHelper<OrigList, Iter, NullType, 0> {
 template <class LbIterationPrev>
 struct LbIteration {
   using PrevIter = LbIterationPrev;
-  static const u32 value = LbIterationPrev::value + 1;
+  static const u32 Count = LbIterationPrev::Count + 1;
 };
 
 template <>
 struct LbIteration<NullType> {
   using PrevIter = NullType;
-  static const u32 value = 0;
+  static const u32 Count = 0;
 };
 
 typedef LbIteration<NullType> LbIter0;
@@ -58,20 +60,20 @@ typedef LbIteration<LbIter0> LbIter1;
 // The final value of L_b is Lb<OrigList, LbIter1>::FinalResult
 template <class OrigList, class Iter>
 struct Lb {
-  static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
-  static const u64 Result = LbHelper<OrigList, Iter, OrigList, n>::Result;
-  static const u64 PrevResult = LbHelper<OrigList, typename Iter::PrevIter, OrigList, n>::Result;
+  static const u32 N = static_cast<u32>(TL::Length<OrigList>::value);
+  static const u64 Result = LbHelper<OrigList, Iter, OrigList, N>::Result;
+  static const u64 PrevResult = LbHelper<OrigList, typename Iter::PrevIter, OrigList, N>::Result;
   static const bool Converged = Result == PrevResult;
 
   using NextIter = LbIteration<Iter>;
 
-  static const bool done = Converged || Lb<OrigList, NextIter>::done;
-  static const u64 FinalResult = done ? Result : Lb<OrigList, NextIter>::FinalResult;
+  static const bool Done = Converged || Lb<OrigList, NextIter>::Done;
+  static const u64 FinalResult = Done ? Result : Lb<OrigList, NextIter>::FinalResult;
 };
 
 template <class OrigList>
 struct Lb<OrigList, LbIteration<NullType>> {
-  static const u64  Result = TotalWcet<OrigList, TL::Length<OrigList>::value>::Result;
+  static const u64 Result = TotalWcet<OrigList, TL::Length<OrigList>::value>::Result;
   static const bool Converged = false;
 };
 
@@ -81,14 +83,14 @@ struct Numerator {
   static const u32 Wcet = TList::Head::Wcet;
   static const u32 Deadline = TList::Head::Deadline;
   static const u32 Period = TList::Head::Period;
-  static constexpr double value = (static_cast<double>(Wcet) / Period) * (Period - Deadline) + Numerator<typename TList::Tail, i - 1>::value;
+  static constexpr double Value = (static_cast<double>(Wcet) / Period) * (Period - Deadline) + Numerator<typename TList::Tail, i - 1>::Value;
 };
 
 template <class TList, u32 i>
 struct TotalUtilization {
   static const u32 Wcet = TList::Head::Wcet;
   static const u32 Period = TList::Head::Period;
-  static constexpr double value = (static_cast<double>(Wcet) / Period) + TotalUtilization<typename TList::Tail, i - 1>::value;
+  static constexpr double Value = (static_cast<double>(Wcet) / Period) + TotalUtilization<typename TList::Tail, i - 1>::Value;
 };
 
 template <class TList, u32 i>
@@ -108,9 +110,15 @@ struct LaStarHelper<NullType, 0> {
 
 template <class TList>
 struct LaStar {
-  static const u32 n = TL::Length<TList>::value;
-  static const u64 LaUpperBound = static_cast<u64>(Numerator<TList, n>::value / (1.0 - TotalUtilization<TList, n>::value));
-  static const int LaUpperBound2 = LaStarHelper<TList, n>::Result;
+  static const u32 N = TL::Length<TList>::value;
+  static constexpr double TotalUtil = TotalUtilization<TList, N>::Value;
+  static const u64 LaUpperBound = TotalUtil < 1.0 ? static_cast<u64>(Numerator<TList, N>::Value / (1.0 - TotalUtilization<TList, N>::Value)) : ULLONG_MAX;
+  static const int LaUpperBound2 = LaStarHelper<TList, N>::Result;
 
   static const u64 Result = LaUpperBound2 < 0 ? LaUpperBound : (LaUpperBound2 > LaUpperBound ? static_cast<u64>(LaUpperBound2) : LaUpperBound);
+};
+
+template <class TList>
+struct L {
+  static const u64 Result = LaStar<TList>::Result < Lb<TList, LbIter1>::FinalResult ? LaStar<TList>::Result : Lb<TList, LbIter1>::FinalResult;
 };
