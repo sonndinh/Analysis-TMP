@@ -57,9 +57,10 @@ struct LbIteration<NullType> {
   static const unsigned int value = 0;
 };
 
-// main can call this with Lb<OrigList, LbIteration<LbIteration<NullType>>>
-// That is, start from the iteration with `value` member of 1.
-// TODO: retrieve the final converged result.
+typedef LbIteration<NullType> LbIter0;
+typedef LbIteration<LbIter0> LbIter1;
+
+// The final value of L_b is Lb<OrigList, LbIter1>::FinalResult
 template <class OrigList, class Iter>
 struct Lb {
   enum {
@@ -75,6 +76,7 @@ struct Lb {
   typedef LbIteration<Iter> NextIter;
 
   static const bool done = Converged || Lb<OrigList, NextIter>::done;
+  static const unsigned int FinalResult = done ? Result : Lb<OrigList, NextIter>::FinalResult;
 };
 
 template <class OrigList>
@@ -84,21 +86,6 @@ struct Lb<OrigList, LbIteration<NullType>> {
     Converged = false
   };
 };
-
-// template <class OrigList>
-// struct LbRoot {
-//   typedef LOKI_TYPELIST_2(LbIteration<NullType>, LbIteration<LbIteration<NullType>>) IterList;
-//   static const int m = TL::Length<IterList>::value;
-//   typedef TL::TypeAt<IterList, m - 1> LastIter;
-
-//   static unsigned int value() {
-//     while (!Lb<OrigList, LastIter>::Converged) {
-//       // TODO: Compute the next iteration
-//     }
-
-//     return Lb<OrigList, LastIter>::Result;
-//   }
-// };
 
 // Compute L_a_star
 template <class TList, unsigned int i>
