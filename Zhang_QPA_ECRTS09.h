@@ -5,7 +5,9 @@
 using namespace Loki;
 
 using u64 = unsigned long long;
+using i64 = long long;
 using u32 = unsigned int;
+using i32 = int;
 
 // Total Wcet of all tasks would be TotalWcet<Taskset, n>,
 // where n is the number of tasks in the taskset, and
@@ -122,3 +124,38 @@ template <class TList>
 struct L {
   static const u64 Result = LaStar<TList>::Result < Lb<TList, LbIter1>::FinalResult ? LaStar<TList>::Result : Lb<TList, LbIter1>::FinalResult;
 };
+
+// Compute Dmin
+template <class TList>
+struct Dmin {
+  static const u32 Result = TList::Head::Deadline < Dmin<typename TList::Tail>::Result ? TList::Head::Deadline : Dmin<typename TList::Tail>::Result;
+};
+
+template <>
+struct Dmin<NullType> {
+  static const u32 Result = UINT_MAX;
+};
+
+// Compute the processor demand function h(t)
+template <class TList, u64 t, u32 i>
+struct Pdf;
+
+template <class TList, u64 t, u32 i>
+struct Pdf {
+  static const u32 Wcet = TList::Head::Wcet;
+  static const u32 Period = TList::Head::Period;
+  static const u32 Deadline = TList::Head::Deadline;
+
+  // For negative value, division operator rounds up while the floor operator rounds down.
+  static const i64 sub = static_cast<i64>(t - Deadline);
+  static const i64 floor_value = sub >= 0 ? sub / Period : (sub % Period == 0 ? sub / Period : (sub / Period) - 1);
+  static const u64 my_value = static_cast<u64>((1 + floor_value) < 0 ? 0 : (1 + floor_value)) * Wcet;
+  static const u64 Result = my_value + Pdf<typename TList::Tail, t, i - 1>::Result;
+};
+
+template <u64 t>
+struct Pdf<NullType, t, 0> {
+  static const u64 Result = 0;
+};
+
+// QPA test
