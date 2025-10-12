@@ -113,7 +113,7 @@ struct LaStarHelper<NullType, 0> {
 template <class TList>
 struct LaStar {
   static const u32 n = TL::Length<TList>::value;
-  static constexpr double total_util = TotalUtilization<TList, n>::Value;
+  static constexpr double total_util = TotalUtilization<TList, n>::value;
   static const u64 la_upperbound = total_util < 1.0 ? static_cast<u64>(Numerator<TList, n>::value / (1.0 - TotalUtilization<TList, n>::value)) : ULLONG_MAX;
   static const int la_upperbound_2 = LaStarHelper<TList, n>::result;
 
@@ -185,20 +185,35 @@ struct DmaxHelper {
   static const u64 result = edge_case ? (length - remain + deadline) : (length - remain - period + deadline);
 };
 
-// Maximum absolute deadline of all tasks in a task set that is less than L.
-// Top-level calls this with Dmax<Taskset, Taskset>.
-template <typename OrigList, typename RemainList>
+// Maximum absolute deadline of all tasks in a task set that is less than a given span of lenth len.
+// For length L, top-level calls this with Dmax<Taskset, Taskset, L<OrigList>::result>.
+template <typename OrigList, typename RemainList, u64 len>
 struct Dmax {
   static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
   static const u32 period = RemainList::Head::period;
   static const u32 deadline = RemainList::Head::deadline;
-  static const u64 my_result = DmaxHelper<period, deadline, L<OrigList>::result>::result;
-  static const u64 others_result = Dmax<OrigList, typename RemainList::Tail>::result;
+  static const u64 my_result = DmaxHelper<period, deadline, len>::result;
+  static const u64 others_result = Dmax<OrigList, typename RemainList::Tail, len>::result;
   static const u64 result = my_result > others_result ? my_result : others_result;
 };
 
 // QPA test
-template <typename TList>
-struct QPA {
+template <typename  OrigList, u64 t>
+struct QPAHelper {
+  static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
+  static const u64 h_t = Pdf<OrigList, t, n>::result;
+  static const u32 d_min = Dmin<OrigList>::result;
 
+  // Update the value of t and recur
+  static const bool keep_going = h_t <= t && h_t > d_min;
+  static const u64 new_t = keep_going ? (h_t < t ? h_t : Dmax<OrigList, OrigList, t>::result) : 0;
+  static const bool result = !keep_going ? (h_t <= d_min ? true : false) : QPAHelper<OrigList, new_t>::result;
+};
+
+template <typename OrigList>
+struct QPA {
+  static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
+  static constexpr double total_util = TotalUtilization<OrigList, n>::value;
+  static const u64 t = Dmax<OrigList, OrigList, L<OrigList>::result>::result;
+  static const bool schedulable = total_util > 1.0 ? false : QPAHelper<OrigList, t>::result;
 };
