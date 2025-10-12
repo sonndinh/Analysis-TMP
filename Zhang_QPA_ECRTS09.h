@@ -120,13 +120,13 @@ struct LaStar {
   static const u64 result = la_upperbound_2 < 0 ? la_upperbound : (la_upperbound_2 > la_upperbound ? static_cast<u64>(la_upperbound_2) : la_upperbound);
 };
 
-template <class TList>
+template <typename TList>
 struct L {
   static const u64 result = LaStar<TList>::result < Lb<TList, LbIter1>::final_result ? LaStar<TList>::result : Lb<TList, LbIter1>::final_result;
 };
 
 // Compute Dmin
-template <class TList>
+template <typename TList>
 struct Dmin {
   static const u32 result = TList::Head::deadline < Dmin<typename TList::Tail>::result ? TList::Head::deadline : Dmin<typename TList::Tail>::result;
 };
@@ -137,10 +137,10 @@ struct Dmin<NullType> {
 };
 
 // Compute the processor demand function h(t)
-template <class TList, u64 t, u32 i>
+template <typename TList, u64 t, u32 i>
 struct Pdf;
 
-template <class TList, u64 t, u32 i>
+template <typename TList, u64 t, u32 i>
 struct Pdf {
   static const u32 wcet = TList::Head::wcet;
   static const u32 period = TList::Head::period;
@@ -158,8 +158,47 @@ struct Pdf<NullType, t, 0> {
   static const u64 result = 0;
 };
 
+// Maximum absolute deadline of a task that is less than L.
+// The following demonstrates cases when deadline is greater than period.
+// But this should work for constrained, implicit, and arbitrary deadlines.
+// |<----------------------------- length ---------------------------------->|
+// |-------------------------------------------------------------------------|
+//                        (last release whose deadline < length)  (deadline) |
+//                                               |                    |      |
+//                                               |<------- D_i ------>|      |
+//                                               v                    v      |
+// |.............................................|--------------------|------|
+//                                                    (next release)      (misses deadline)
+//                                                           |               |    |
+//                                                           v               |    v
+//                                               |<-- T_i -->|<------ D_i ------->|
+// |.............................................|-----------|--------------------|
+// |.........................................................|<-- remain --->|
+template <u32 period, u32 deadline, u64 length>
+struct DmaxHelper {
+  // Check if deadline < length < period. In this case, we also stop recurring to the next instantiation of DmaxHelper.
+  // The last absolute deadline within the given length in this case is different than when length <= deadline since
+  // for this case, we don't have to go back to the immediate previous job release.
+  static const bool edge_case = length <= deadline ? false : (length < period ? true : DmaxHelper<period, deadline, length - period>::edge_case);
+  static const u64 remain = length <= deadline ? length
+                                               : (length < period ? length : DmaxHelper<period, deadline, length - period>::remain);
+  static const u64 result = edge_case ? (length - remain + deadline) : (length - remain - period + deadline);
+};
+
+// Maximum absolute deadline of all tasks in a task set that is less than L.
+// Top-level calls this with Dmax<Taskset, Taskset>.
+template <typename OrigList, typename RemainList>
+struct Dmax {
+  static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
+  static const u32 period = RemainList::Head::period;
+  static const u32 deadline = RemainList::Head::deadline;
+  static const u64 my_result = DmaxHelper<period, deadline, L<OrigList>::result>::result;
+  static const u64 others_result = Dmax<OrigList, typename RemainList::Tail>::result;
+  static const u64 result = my_result > others_result ? my_result : others_result;
+};
+
 // QPA test
-template <class TList>
+template <typename TList>
 struct QPA {
 
 };
