@@ -23,6 +23,7 @@ int main() {
   using Taskset = LOKI_TYPELIST_2(Task1, Task2);
 
   std::cout << "Task set total WCET: " << TotalWcet<Taskset, 2>::result << std::endl;
+  std::cout << "Task set is schedulable: " << (QPA<Taskset>::schedulable ? "yes" : "no") << std::endl;
 
   return 0;
 }

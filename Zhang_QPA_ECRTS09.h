@@ -12,10 +12,10 @@ using i32 = int;
 // Total Wcet of all tasks would be TotalWcet<Taskset, n>,
 // where n is the number of tasks in the taskset, and
 // Taskset is a typelist of all tasks, e.g. LOKI_TYPELIST_3(Task1, Task2, Task3)
-template <class TList, u32 n>
+template <typename TList, u32 n>
 struct TotalWcet;
 
-template <class Head, class Tail, u32 i>
+template <typename Head, typename Tail, u32 i>
 struct TotalWcet<Typelist<Head, Tail>, i> {
   static const u32 result = Head::wcet + TotalWcet<Tail, i - 1>::result;
 };
@@ -26,25 +26,10 @@ struct TotalWcet<NullType, 0> {
 };
 
 // Compute L_b iteratively until convergence. OrigList is the original task set.
-template <class OrigList, class Iter>
+template <typename OrigList, typename Iter>
 struct Lb;
 
-template <class OrigList, class Iter, class RemainList, u32 i>
-struct LbHelper {
-  static const u64 prev_lb = Lb<OrigList, typename Iter::PrevIter>::result;
-  static const u64 wcet = RemainList::Head::wcet;
-  static const u64 period = RemainList::Head::period;
-
-  static const u64 my_value = ((prev_lb % period > 0 ? 1 : 0) + (prev_lb / period)) * wcet;
-  static const u64 result = my_value + LbHelper<OrigList, Iter, typename RemainList::Tail, i - 1>::result;
-};
-
-template <class OrigList, class Iter>
-struct LbHelper<OrigList, Iter, NullType, 0> {
-  static const u64 result = 0;
-};
-
-template <class LbIterationPrev>
+template <typename LbIterationPrev>
 struct LbIteration {
   using PrevIter = LbIterationPrev;
   static const u32 count = LbIterationPrev::count + 1;
@@ -59,8 +44,34 @@ struct LbIteration<NullType> {
 typedef LbIteration<NullType> LbIter0;
 typedef LbIteration<LbIter0> LbIter1;
 
-// The final value of L_b is Lb<OrigList, LbIter1>::FinalResult
-template <class OrigList, class Iter>
+template <typename OrigList>
+struct Lb<OrigList, LbIteration<NullType>> {
+  static const u64 result = TotalWcet<OrigList, TL::Length<OrigList>::value>::result;
+  static const bool converged = false;
+};
+
+template <typename OrigList, typename Iter, typename RemainList, u32 i>
+struct LbHelper {
+  static const u64 prev_lb = Lb<OrigList, typename Iter::PrevIter>::result;
+  static const u64 wcet = RemainList::Head::wcet;
+  static const u64 period = RemainList::Head::period;
+
+  static const u64 my_value = ((prev_lb % period > 0 ? 1 : 0) + (prev_lb / period)) * wcet;
+  static const u64 result = my_value + LbHelper<OrigList, Iter, typename RemainList::Tail, i - 1>::result;
+};
+
+template <typename OrigList, typename Iter>
+struct LbHelper<OrigList, Iter, NullType, 0> {
+  static const u64 result = 0;
+};
+
+template <typename OrigList, typename RemainList, u32 i>
+struct LbHelper<OrigList, LbIter0, RemainList, i> {
+  static const u64 result = 0;
+};
+
+// The final value of L_b is Lb<OrigList, LbIter1>::final_result
+template <typename OrigList, typename Iter>
 struct Lb {
   static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
   static const u64 result = LbHelper<OrigList, Iter, OrigList, n>::result;
@@ -73,14 +84,8 @@ struct Lb {
   static const u64 final_result = done ? result : Lb<OrigList, NextIter>::final_result;
 };
 
-template <class OrigList>
-struct Lb<OrigList, LbIteration<NullType>> {
-  static const u64 result = TotalWcet<OrigList, TL::Length<OrigList>::value>::result;
-  static const bool converged = false;
-};
-
 // Compute L_a_star
-template <class TList, u32 i>
+template <typename TList, u32 i>
 struct Numerator {
   static const u32 wcet = TList::Head::wcet;
   static const u32 deadline = TList::Head::deadline;
@@ -88,14 +93,24 @@ struct Numerator {
   static constexpr double value = (static_cast<double>(wcet) / period) * (period - deadline) + Numerator<typename TList::Tail, i - 1>::value;
 };
 
-template <class TList, u32 i>
+template <>
+struct Numerator<NullType, 0> {
+  static constexpr double value = 0.0;
+};
+
+template <typename TList, u32 i>
 struct TotalUtilization {
   static const u32 wcet = TList::Head::wcet;
   static const u32 period = TList::Head::period;
   static constexpr double value = (static_cast<double>(wcet) / period) + TotalUtilization<typename TList::Tail, i - 1>::value;
 };
 
-template <class TList, u32 i>
+template <>
+struct TotalUtilization<NullType, 0> {
+  static constexpr double value = 0.0;
+};
+
+template <typename TList, u32 i>
 struct LaStarHelper {
   static const int deadline = static_cast<int>(TList::Head::deadline);
   static const int period = static_cast<int>(TList::Head::period);
@@ -110,7 +125,7 @@ struct LaStarHelper<NullType, 0> {
   static const int result = 0;
 };
 
-template <class TList>
+template <typename TList>
 struct LaStar {
   static const u32 n = TL::Length<TList>::value;
   static constexpr double total_util = TotalUtilization<TList, n>::value;
