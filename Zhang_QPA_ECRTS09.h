@@ -26,103 +26,46 @@ struct TotalWcet<NullType, 0> {
 };
 
 // Compute L_b iteratively until convergence. OrigList is the original task set.
-// template <typename OrigList, typename Iter>
-template <typename OrigList, u32 iter>
-struct Lb;
-
-// template <typename LbIterationPrev>
-// struct LbIteration {
-//   using PrevIter = LbIterationPrev;
-//   static const u32 count = LbIterationPrev::count + 1;
-// };
-
-// template <>
-// struct LbIteration<NullType> {
-//   using PrevIter = NullType;
-//   static const u32 count = 0;
-// };
-
-// typedef LbIteration<NullType> LbIter0;
-// typedef LbIteration<LbIter0> LbIter1;
-
-// template <typename OrigList>
-// struct Lb<OrigList, LbIteration<NullType>> {
-//   static const u64 result = TotalWcet<OrigList, TL::Length<OrigList>::value>::result;
-//   static const bool converged = false;
-// };
-
-template <typename OrigList>
-struct Lb<OrigList, 0> {
-  static const u64 result = TotalWcet<OrigList, TL::Length<OrigList>::value>::result;
-  static const bool converged = false;
-};
-
-// Compute Lb at a particular iteration LbHelper<OrigList, Iter, OrigList, n> where n is the size of Taskset.
-// template <typename OrigList, typename Iter, typename RemainList, u32 i>
-// struct LbHelper {
-//   static const u64 prev_lb = Lb<OrigList, typename Iter::PrevIter>::result;
-//   static const u64 wcet = RemainList::Head::wcet;
-//   static const u64 period = RemainList::Head::period;
-
-//   static const u64 my_value = ((prev_lb % period > 0 ? 1 : 0) + (prev_lb / period)) * wcet;
-//   static const u64 result = my_value + LbHelper<OrigList, Iter, typename RemainList::Tail, i - 1>::result;
-// };
-
-// template <typename OrigList, typename Iter>
-// struct LbHelper<OrigList, Iter, NullType, 0> {
-//   static const u64 result = 0;
-// };
-
-// template <typename OrigList, typename RemainList, u32 i>
-// struct LbHelper<OrigList, LbIter0, RemainList, i> {
-//   static const u64 result = 0;
-// };
-
-template <typename OrigList, u32 iter, typename RemainList, u32 i>
-struct LbHelper {
-  // TODO: Make sure for iter 0, setting prev_lb to 0 makes sense.
-  static const u64 prev_lb = iter > 0 ? Lb<OrigList, iter - 1>::result : 0;
+template <typename OrigList, u64 prev_value, u32 iter, typename RemainList, u32 i>
+struct LbHelper2 {
   static const u64 wcet = RemainList::Head::wcet;
   static const u64 period = RemainList::Head::period;
 
-  static const u64 my_value = ((prev_lb % period > 0 ? 1 : 0) + (prev_lb / period)) * wcet;
-  static const u64 result = my_value + LbHelper<OrigList, iter, typename RemainList::Tail, i - 1>::result;
+  static const u64 my_value = ((prev_value % period > 0 ? 1 : 0) + (prev_value / period)) * wcet;
+  static const u64 result = my_value + LbHelper2<OrigList, prev_value, iter, typename RemainList::Tail, i - 1>::result;
 };
 
-template <typename OrigList, u32 iter>
-struct LbHelper<OrigList, iter, NullType, 0> {
+template <typename OrigList, u64 prev_value, u32 iter>
+struct LbHelper2<OrigList, prev_value, iter, NullType, 0> {
   static const u64 result = 0;
 };
 
-template <typename OrigList, typename RemainList, u32 i>
-struct LbHelper<OrigList, 0, RemainList, i> {
-  static const u64 result = 0;
-};
-
-// The final value of L_b is Lb<OrigList, LbIter1>::final_result
-// template <typename OrigList, typename Iter>
-// struct Lb {
-//   static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
-//   static const u64 result = LbHelper<OrigList, Iter, OrigList, n>::result;
-//   static const u64 prev_result = LbHelper<OrigList, typename Iter::PrevIter, OrigList, n>::result;
-//   static const bool converged = result == prev_result;
-
-//   using NextIter = LbIteration<Iter>;
-
-//   static const bool done = converged || Lb<OrigList, NextIter>::done;
-//   static const u64 final_result = done ? result : Lb<OrigList, NextIter>::final_result;
-// };
-
-template <typename OrigList, u32 iter>
-struct Lb {
+template <typename OrigList, u64 prev_value, u32 iter>
+struct LbHelper {
   static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
-  static const u64 result = LbHelper<OrigList, iter, OrigList, n>::result;
-  static const u64 prev_result = LbHelper<OrigList, iter - 1, OrigList, n>::result;
-  static const bool converged = result == prev_result;
+  static const u64 value = LbHelper2<OrigList, prev_value, iter, OrigList, n>::result;
+  static constexpr bool converged = value == prev_value;
 
-  using NextLbIteration = Lb<OrigList, iter + 1>;
-  static const bool done = converged || NextLbIteration::done;
-  static const u64 final_result = done ? result : NextLbIteration::final_result;
+  static constexpr u64 result() {
+    if constexpr (converged) {
+      return value;
+    } else {
+      return LbHelper<OrigList, value, iter + 1>::result();
+    }
+  }
+};
+
+template <typename OrigList, u64 prev_value>
+struct LbHelper<OrigList, prev_value, 0> {
+  static constexpr u64 result() {
+    return TotalWcet<OrigList, TL::Length<OrigList>::value>::result;
+  }
+};
+
+template <typename OrigList>
+struct Lb {
+  static const u64 init = LbHelper<OrigList, 0, 0>::result();
+  static const u64 result = LbHelper<OrigList, init, 1>::result();
 };
 
 // Compute L_a_star
@@ -178,8 +121,7 @@ struct LaStar {
 
 template <typename TList>
 struct L {
-  // static const u64 result = LaStar<TList>::result < Lb<TList, LbIter1>::final_result ? LaStar<TList>::result : Lb<TList, LbIter1>::final_result;
-  static const u64 result = LaStar<TList>::result < Lb<TList, 1>::final_result ? LaStar<TList>::result : Lb<TList, 1>::final_result;
+  static const u64 result = LaStar<TList>::result < Lb<TList>::result ? LaStar<TList>::result : Lb<TList>::result;
 };
 
 // Compute Dmin
