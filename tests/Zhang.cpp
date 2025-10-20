@@ -26,7 +26,12 @@ int main() {
   std::cout << "L_b: " << Lb<Taskset>::result << std::endl;
   std::cout << "L_a_star: " << LaStar<Taskset>::result << std::endl;
   std::cout << "L: " << L<Taskset>::result << std::endl;
-  // std::cout << "Task set is schedulable: " << (QPA<Taskset>::schedulable ? "yes" : "no") << std::endl;
+  {
+    std::cout << "Dmax: " << Dmax<Taskset, Taskset, L<Taskset>::result>::result << std::endl;
+    std::cout << "DmaxHelper for Task1: " << DmaxHelper<Task1::period, Task1::deadline, L<Taskset>::result>::result << std::endl;
+    std::cout << "DmaxHelper for Task2: " << DmaxHelper<Task2::period, Task2::deadline, L<Taskset>::result>::result << std::endl;
+  }
+  std::cout << "Task set is schedulable: " << (QPA<Taskset>::schedulable ? "yes" : "no") << std::endl;
 
   return 0;
 }

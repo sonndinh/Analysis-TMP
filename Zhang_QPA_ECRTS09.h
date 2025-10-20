@@ -178,10 +178,25 @@ struct DmaxHelper {
   // Check if deadline < length < period. In this case, we also stop recurring to the next instantiation of DmaxHelper.
   // The last absolute deadline within the given length in this case is different than when length <= deadline since
   // for this case, we don't have to go back to the immediate previous job release.
-  static const bool edge_case = length <= deadline ? false : (length < period ? true : DmaxHelper<period, deadline, length - period>::edge_case);
-  static const u64 remain = length <= deadline ? length
-                                               : (length < period ? length : DmaxHelper<period, deadline, length - period>::remain);
-  static const u64 result = edge_case ? (length - remain + deadline) : (length - remain - period + deadline);
+  static constexpr bool edge_case() {
+    if constexpr (length < deadline) {
+      return false;
+    } else if constexpr (length <= period) {
+      return true;
+    } else {
+      return DmaxHelper<period, deadline, length - period>::edge_case();
+    }
+  }
+
+  static constexpr u64 remain() {
+    if constexpr (length < deadline || length <= period) {
+      return length;
+    } else {
+      return DmaxHelper<period, deadline, length - period>::remain();
+    }
+  }
+
+  static const u64 result = edge_case() ? (length - remain() + deadline) : (length - remain() - period + deadline);
 };
 
 // Maximum absolute deadline of all tasks in a task set that is less than a given span of lenth len.
@@ -194,6 +209,11 @@ struct Dmax {
   static const u64 my_result = DmaxHelper<period, deadline, len>::result;
   static const u64 others_result = Dmax<OrigList, typename RemainList::Tail, len>::result;
   static const u64 result = my_result > others_result ? my_result : others_result;
+};
+
+template <typename OrigList, u64 len>
+struct Dmax<OrigList, NullType, len> {
+  static const u64 result = 0;
 };
 
 // QPA test
