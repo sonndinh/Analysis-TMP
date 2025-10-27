@@ -226,7 +226,14 @@ struct QPAHelper {
   // Update the value of t and recur
   static const bool keep_going = h_t <= t && h_t > d_min;
   static const u64 new_t = keep_going ? (h_t < t ? h_t : Dmax<OrigList, OrigList, t>::result) : 0;
-  static const bool result = !keep_going ? (h_t <= d_min ? true : false) : QPAHelper<OrigList, new_t>::result;
+
+  static constexpr bool result() {
+    if constexpr (!keep_going) {
+      return h_t <= d_min ? true : false;
+    } else {
+      return QPAHelper<OrigList, new_t>::result();
+    }
+  }
 };
 
 template <typename OrigList>
@@ -234,5 +241,12 @@ struct QPA {
   static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
   static constexpr double total_util = TotalUtilization<OrigList, n>::value;
   static const u64 t = Dmax<OrigList, OrigList, L<OrigList>::result>::result;
-  static const bool schedulable = total_util > 1.0 ? false : QPAHelper<OrigList, t>::result;
+
+  static constexpr bool schedulable() {
+    if constexpr (total_util > 1.0) {
+      return false;
+    } else {
+      return QPAHelper<OrigList, t>::result();
+    }
+  }
 };

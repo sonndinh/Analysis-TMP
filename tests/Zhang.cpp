@@ -31,7 +31,11 @@ int main() {
     std::cout << "DmaxHelper for Task1: " << DmaxHelper<Task1::period, Task1::deadline, L<Taskset>::result>::result << std::endl;
     std::cout << "DmaxHelper for Task2: " << DmaxHelper<Task2::period, Task2::deadline, L<Taskset>::result>::result << std::endl;
   }
-  std::cout << "Task set is schedulable: " << (QPA<Taskset>::schedulable ? "yes" : "no") << std::endl;
+  std::cout << "d_min: " << Dmin<Taskset>::result << std::endl;
+  std::cout << "h_t for t = " << QPA<Taskset>::t << ": " << QPAHelper<Taskset, QPA<Taskset>::t>::h_t << std::endl;
+  std::cout << "keep_going: " << QPAHelper<Taskset, QPA<Taskset>::t>::keep_going << std::endl;
+  std::cout << "new_t: " << QPAHelper<Taskset, QPA<Taskset>::t>::new_t << std::endl;
+  std::cout << "Task set is schedulable: " << (QPA<Taskset>::schedulable() ? "yes" : "no") << std::endl;
 
   return 0;
 }
