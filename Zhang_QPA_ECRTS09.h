@@ -1,6 +1,7 @@
 #include <loki/Typelist.h>
 
 #include <climits>
+#include <algorithm>
 
 using namespace Loki;
 
@@ -157,63 +158,29 @@ struct Pdf<NullType, t, 0> {
   static const u64 result = 0;
 };
 
-// Maximum absolute deadline of a task that is less than L.
-// The following demonstrates cases when deadline is greater than period.
-// But this should work for constrained, implicit, and arbitrary deadlines.
-// |<----------------------------- length ---------------------------------->|
-// |-------------------------------------------------------------------------|
-//                        (last release whose deadline < length)  (deadline) |
-//                                               |                    |      |
-//                                               |<------- D_i ------>|      |
-//                                               v                    v      |
-// |.............................................|--------------------|------|
-//                                                    (next release)      (misses deadline)
-//                                                           |               |    |
-//                                                           v               |    v
-//                                               |<-- T_i -->|<------ D_i ------->|
-// |.............................................|-----------|--------------------|
-// |.........................................................|<-- remain --->|
-template <u32 period, u32 deadline, u64 length>
-struct DmaxHelper {
-  // Check if deadline < length < period. In this case, we also stop recurring to the next instantiation of DmaxHelper.
-  // The last absolute deadline within the given length in this case is different than when length <= deadline since
-  // for this case, we don't have to go back to the immediate previous job release.
-  static constexpr bool edge_case() {
-    if constexpr (length < deadline) {
-      return false;
-    } else if constexpr (length <= period) {
-      return true;
-    } else {
-      return DmaxHelper<period, deadline, length - period>::edge_case();
-    }
-  }
-
-  static constexpr u64 remain() {
-    if constexpr (length < deadline || length <= period) {
-      return length;
-    } else {
-      return DmaxHelper<period, deadline, length - period>::remain();
-    }
-  }
-
-  static const u64 result = edge_case() ? (length - remain() + deadline) : (length - remain() - period + deadline);
-};
-
-// Maximum absolute deadline of all tasks in a task set that is less than a given span of lenth len.
-// For length L, top-level calls this with Dmax<Taskset, Taskset, L<OrigList>::result>.
-template <typename OrigList, typename RemainList, u64 len>
+// Compute maximum absolute deadline that is less than t
+template <typename OrigList, typename RemainList, u64 t>
 struct Dmax {
   static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
   static const u32 period = RemainList::Head::period;
   static const u32 deadline = RemainList::Head::deadline;
-  static const u64 my_result = DmaxHelper<period, deadline, len>::result;
-  static const u64 others_result = Dmax<OrigList, typename RemainList::Tail, len>::result;
-  static const u64 result = my_result > others_result ? my_result : others_result;
+
+  static constexpr u64 result() {
+    if (deadline < t) {
+      const u64 tmp = ((t - deadline) / period) * period + deadline;
+      const u64 last_deadline = tmp < t ? tmp : (tmp - period);
+      return std::max(last_deadline, Dmax<OrigList, typename RemainList::Tail, t>::result());
+    } else {
+      return Dmax<OrigList, typename RemainList::Tail, t>::result();
+    }
+  }
 };
 
-template <typename OrigList, u64 len>
-struct Dmax<OrigList, NullType, len> {
-  static const u64 result = 0;
+template <typename OrigList, u64 t>
+struct Dmax<OrigList, NullType, t> {
+  static constexpr u64 result() {
+    return 0;
+  }
 };
 
 // QPA test
@@ -225,7 +192,7 @@ struct QPAHelper {
 
   // Update the value of t and recur
   static const bool keep_going = h_t <= t && h_t > d_min;
-  static const u64 new_t = keep_going ? (h_t < t ? h_t : Dmax<OrigList, OrigList, t>::result) : 0;
+  static const u64 new_t = keep_going ? (h_t < t ? h_t : Dmax<OrigList, OrigList, t>::result()) : 0;
 
   static constexpr bool result() {
     if constexpr (!keep_going) {
@@ -240,7 +207,7 @@ template <typename OrigList>
 struct QPA {
   static const u32 n = static_cast<u32>(TL::Length<OrigList>::value);
   static constexpr double total_util = TotalUtilization<OrigList, n>::value;
-  static const u64 t = Dmax<OrigList, OrigList, L<OrigList>::result>::result;
+  static const u64 t = Dmax<OrigList, OrigList, L<OrigList>::result>::result();
 
   static constexpr bool schedulable() {
     if constexpr (total_util > 1.0) {

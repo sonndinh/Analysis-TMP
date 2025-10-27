@@ -2,6 +2,25 @@
 
 #include <iostream>
 
+// TODO: Try similar task sets for both Zhang's and Deters's analyses
+void test1() {
+  struct Task1 {
+    enum {
+      cost = 10,
+      deadline = 20,
+      period = 25
+    };
+  };
+
+  struct Task2 {
+    enum {
+      wcet = 15,
+      deadline = 25,
+      period = 30
+    };
+  };
+}
+
 int main() {
   struct TaskA {
     enum {
