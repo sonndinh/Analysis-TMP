@@ -73,9 +73,10 @@ struct Lb {
 template <typename TList, u32 i>
 struct Numerator {
   static const u32 wcet = TList::Head::wcet;
-  static const u32 deadline = TList::Head::deadline;
-  static const u32 period = TList::Head::period;
-  static constexpr double value = (static_cast<double>(wcet) / period) * (period - deadline) + Numerator<typename TList::Tail, i - 1>::value;
+  static const i32 deadline = static_cast<i32>(TList::Head::deadline);
+  static const i32 period = static_cast<i32>(TList::Head::period);
+  static constexpr double util = static_cast<double>(wcet) / period;
+  static constexpr double value = (period - deadline) * util + Numerator<typename TList::Tail, i - 1>::value;
 };
 
 template <>
@@ -97,32 +98,33 @@ struct TotalUtilization<NullType, 0> {
 
 template <typename TList, u32 i>
 struct LaStarHelper {
-  static const int deadline = static_cast<int>(TList::Head::deadline);
-  static const int period = static_cast<int>(TList::Head::period);
-  static const int my_delta = deadline - period;
-
-  static const int max_others_delta = LaStarHelper<typename TList::Tail, i - 1>::result;
-  static const int result = my_delta > max_others_delta ? my_delta : max_others_delta;
+  static const i32 deadline = static_cast<i32>(TList::Head::deadline);
+  static const i32 period = static_cast<i32>(TList::Head::period);
+  static const i32 my_delta = deadline - period;
+  static const i32 result = std::max(my_delta, LaStarHelper<typename TList::Tail, i - 1>::result);
 };
 
 template <>
 struct LaStarHelper<NullType, 0> {
-  static const int result = 0;
+  static const i32 result = 0;
 };
 
 template <typename TList>
 struct LaStar {
   static const u32 n = TL::Length<TList>::value;
   static constexpr double total_util = TotalUtilization<TList, n>::value;
-  static const u64 la_upperbound = total_util < 1.0 ? static_cast<u64>(Numerator<TList, n>::value / (1.0 - TotalUtilization<TList, n>::value)) : ULLONG_MAX;
-  static const int la_upperbound_2 = LaStarHelper<TList, n>::result;
+  static const i64 la_upperbound = total_util < 1.0 ? static_cast<i64>(Numerator<TList, n>::value / (1.0 - total_util)) : LLONG_MAX;
+  static const i64 la_upperbound_2 = LaStarHelper<TList, n>::result;
 
-  static const u64 result = la_upperbound_2 < 0 ? la_upperbound : (la_upperbound_2 > la_upperbound ? static_cast<u64>(la_upperbound_2) : la_upperbound);
+  // Safe to cast to u64 since the result of std::max should be non-negative
+  static const u64 result = static_cast<u64>(std::max(la_upperbound, la_upperbound_2));
 };
 
 template <typename TList>
 struct L {
-  static const u64 result = LaStar<TList>::result < Lb<TList>::result ? LaStar<TList>::result : Lb<TList>::result;
+  static const u32 n = TL::Length<TList>::value;
+  static constexpr double total_util = TotalUtilization<TList, n>::value;
+  static const u64 result = total_util < 1.0 ? std::min(LaStar<TList>::result, Lb<TList>::result) : Lb<TList>::result;
 };
 
 // Compute Dmin
