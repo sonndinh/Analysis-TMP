@@ -2,6 +2,7 @@
 
 #include <climits>
 #include <algorithm>
+#include <iostream>
 
 using namespace Loki;
 
@@ -203,6 +204,17 @@ struct QPAHelper {
       return QPAHelper<OrigList, new_t>::result();
     }
   }
+
+#ifndef NDEBUG
+  static void debug() {
+    std::cout << "t = " << t << ", h(t) = " << h_t << std::endl;
+    if constexpr (keep_going) {
+      QPAHelper<OrigList, new_t>::debug();
+    } else {
+      std::cout << std::endl;
+    }
+  }
+#endif
 };
 
 template <typename OrigList>
@@ -218,4 +230,12 @@ struct QPA {
       return QPAHelper<OrigList, t>::result();
     }
   }
+
+#ifndef NDEBUG
+  static void debug() {
+    if constexpr (total_util <= 1.0) {
+      QPAHelper<OrigList, t>::debug();
+    }
+  }
+#endif
 };
