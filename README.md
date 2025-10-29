@@ -21,5 +21,10 @@ Build tests by running:
 cd tests
 make
 ```
+By default, the tests print intermediate values of the analysis for debugging purposes. To disable those messages, run:
+
+```
+make NDEBUG_FLAG=-DNDEBUG
+```
 
 Output binaries are placed in `tests/build` directory.
