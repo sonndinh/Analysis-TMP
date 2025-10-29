@@ -5,6 +5,8 @@ endif
 
 BUILD_DIR = build
 SRC_DIR = ..
+# Turn off debug logs with: make NDEBUG_FLAG=-DNDEBUG
+NDEBUG_FLAG =
 
 all: create_build_dir $(BUILD_DIR)/Zhang $(BUILD_DIR)/Deters
 
@@ -12,10 +14,10 @@ create_build_dir:
 	@mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/Zhang: Zhang.cpp $(SRC_DIR)/Zhang_QPA_ECRTS09.h
-	g++ -std=c++17 -I $(LOKI_ROOT)/include/ -I$(SRC_DIR) Zhang.cpp -o $(BUILD_DIR)/Zhang
+	g++ -std=c++17 $(NDEBUG_FLAG) -I $(LOKI_ROOT)/include/ -I$(SRC_DIR) Zhang.cpp -o $(BUILD_DIR)/Zhang
 
 $(BUILD_DIR)/Deters: Deters.cpp $(SRC_DIR)/Deters_RMAnalysis_RTAS03.h
-	g++ -std=c++17 -I $(LOKI_ROOT)/include/ -I$(SRC_DIR) Deters.cpp -o $(BUILD_DIR)/Deters
+	g++ -std=c++17 $(NDEBUG_FLAG) -I $(LOKI_ROOT)/include/ -I$(SRC_DIR) Deters.cpp -o $(BUILD_DIR)/Deters
 
 clean:
 	rm -rf $(BUILD_DIR)
