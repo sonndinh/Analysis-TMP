@@ -1,3 +1,4 @@
 .vscode/
 loki-*/
 tests/build/
+rust/target
