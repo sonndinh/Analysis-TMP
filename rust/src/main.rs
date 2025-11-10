@@ -1,74 +1,35 @@
 use std::marker::PhantomData;
 
 // Task list
-pub trait TaskTrait {
+#[allow(non_upper_case_globals)]
+#[allow(dead_code)] // deadline and period are unused for now
+trait TaskTrait {
   const wcet: u32;
   const deadline: u32;
   const period: u32;
 }
 
-pub struct NullTask;
+struct NullTask;
 
-impl TaskTrait for NullTask {
-  const wcet: u32 = 0;
-  const deadline: u32 = 0;
-  const period: u32 = 0;
-}
-
-// TODO: Rust doesn't have the flexibility of C++ templates and we need to
-// specify the trait for each type since Rust won't allow using an arbitrary type for a type parameter.
-// - need trait for Task
-// - Change TypelistTrait to TasksetTrait and Head is bounded to the Task's trait
-pub trait NonEmptyListTrait {}
-
-pub trait TasklistTrait {
-  type Head: TaskTrait;
-  type Tail: TasklistTrait;
-}
-
-pub struct Tasklist<T: TaskTrait, U: TasklistTrait> {
-  _head: PhantomData<T>,
-  _tail: PhantomData<U>,
-}
-
-impl<T, U> TasklistTrait for Tasklist<T, U>
-  where T: TaskTrait, U: TasklistTrait {
-    type Head = T;
-    type Tail = U;
-}
-
-impl<T, U> NonEmptyListTrait for Tasklist<T, U>
-  where T: TaskTrait, U: TasklistTrait {}
-
-pub struct NullTasklist;
-
-impl TasklistTrait for NullTasklist {
-  type Head = NullTask;
-  type Tail = NullTasklist;
-}
+struct Tasklist<T, U> (PhantomData<T>, PhantomData<U>);
 
 // Total WCET
-trait TotalWcetTrait {
+#[allow(non_upper_case_globals)]
+trait TotalWcet {
   const result: u32;
 }
 
-pub struct TotalWcet<TL: TasklistTrait> {
-  _typelist: PhantomData<TL>
+impl<T: TaskTrait, U: TotalWcet> TotalWcet for Tasklist<T, U> {
+  const result: u32 = T::wcet + U::result;
 }
 
-impl TotalWcetTrait for TotalWcet<NullTasklist> {
+impl TotalWcet for NullTask {
   const result: u32 = 0;
-}
-
-impl<TL: TasklistTrait + NonEmptyListTrait> TotalWcetTrait for TotalWcet<TL> {
-  const result: u32 = TL::Head::wcet + TotalWcet::<TL::Tail>::result;
 }
 
 fn main() {
   struct Task1;
 
-  #[allow(non_upper_case_globals)]
-  #[allow(dead_code)]
   impl TaskTrait for Task1 {
     const wcet: u32 = 10;
     const deadline: u32 = 15;
@@ -77,16 +38,11 @@ fn main() {
 
   struct Task2;
 
-  #[allow(non_upper_case_globals)]
-  #[allow(dead_code)]
   impl TaskTrait for Task2 {
     const wcet: u32 = 4;
     const deadline: u32 = 6;
     const period: u32 = 10;
   }
 
-  #[allow(dead_code)]
-  type Tasks = Tasklist<Task1, Tasklist<Task2, NullTasklist>>;
-
-  println!("Total WCET = {}", TotalWcet::<Tasks>::result);
+  println!("Total WCET = {}", <Tasklist<Task1, Tasklist<Task2, NullTask>> as TotalWcet>::result);
 }
