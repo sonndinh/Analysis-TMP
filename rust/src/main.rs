@@ -49,30 +49,27 @@ trait MaxDelta {
 
 trait Equality {}
 
-// #[derive(Debug)]
 struct EQ;
 
 impl EQ {
     const fn to_string() -> &'static str {
-        "Equal"
+        "=="
     }
 }
 
-// #[derive(Debug)]
 struct LT;
 
 impl LT {
     const fn to_string() ->&'static str {
-        "Less Than"
+        "<"
     }
 }
 
-// #[derive(Debug)]
 struct GT;
 
 impl GT {
     const fn to_string() -> &'static str {
-        "Greater Than"
+        ">"
     }
 }
 
@@ -101,6 +98,7 @@ trait Cmp<A> {
     type Output: Equality;
 }
 
+// Compare with Zero
 impl Cmp<Zero> for Zero {
     type Output = EQ;
 }
@@ -113,18 +111,104 @@ impl<P> Cmp<Zero> for Succ<P> {
     type Output = GT;
 }
 
-impl<A: Cmp<B>, B> Cmp<Succ<B>> for Succ<A> {
-    type Output = <A as Cmp<B>>::Output;
-}
-
 impl<N> Cmp<Pred<N>> for Zero {
     type Output = GT;
 }
 
-// impl<T: TaskTrait, U: MaxDelta> MaxDelta for Tasklist<T, U> {
-//     // TODO: compare these 2 operands
-//     const result: i32 = (T::deadline as i32 - T::period as i32), U::result;
+impl<N> Cmp<Zero> for Pred<N> {
+    type Output = LT;
+}
+
+// Compare positive numbers
+impl<A: Cmp<B>, B> Cmp<Succ<B>> for Succ<A> {
+    type Output = <A as Cmp<B>>::Output;
+}
+
+// Compare negative numbers
+impl<A: Cmp<B>, B> Cmp<Pred<B>> for Pred<A> {
+    type Output = <A as Cmp<B>>::Output;
+}
+
+// Compare positive and negative numbers
+impl<P, N> Cmp<Pred<N>> for Succ<P> {
+    type Output = GT;
+}
+
+impl<N, P> Cmp<Succ<P>> for Pred<N> {
+    type Output = LT;
+}
+
+// A type-level max function
+trait Max<A> {
+    type Output;
+}
+
+// Max with Zero
+impl Max<Zero> for Zero {
+    type Output = Zero;
+}
+
+impl<P> Max<Succ<P>> for Zero {
+    type Output = Succ<P>;
+}
+
+impl<P> Max<Zero> for Succ<P> {
+    type Output = Succ<P>;
+}
+
+impl<N> Max<Pred<N>> for Zero {
+    type Output = Zero;
+}
+
+impl<N> Max<Zero> for Pred<N> {
+    type Output = Zero;
+}
+
+trait Greater {}
+impl Greater for GT {}
+trait Lesser {}
+impl Lesser for LT {}
+trait Equal {}
+impl Equal for EQ {}
+
+// Max of positive numbers
+impl<A, B> Max<Succ<B>> for Succ<A>
+where Succ<A>: Cmp<Succ<B>>,
+<Succ<A> as Cmp<Succ<B>>>::Output: Greater {
+    type Output = Succ<A>;
+}
+
+// This gets conflicting implementation with the above
+// impl<A, B> Max<Succ<B>> for Succ<A>
+// where Succ<A>: Cmp<Succ<B>>,
+// <Succ<A> as Cmp<Succ<B>>>::Output: Lesser {
+//     type Output = Succ<B>;
 // }
+
+
+// Max of nagative numbers
+
+// TODO: Implement Max for other combinations
+
+impl<T: TaskTrait, U: MaxDelta> Tasklist<T, U> {
+    const fn result() -> i32 {
+        let first = T::deadline as i32 - T::period as i32;
+        let second = U::result;
+        if first > second {
+            first
+        } else {
+            second
+        }
+    }
+}
+
+impl<T: TaskTrait, U: MaxDelta> MaxDelta for Tasklist<T, U> {
+    const result: i32 = Tasklist::<T, U>::result();
+}
+
+impl MaxDelta for NullTask {
+    const result: i32 = i32::MIN;
+}
 
 fn main() {
     struct Task1;
@@ -148,6 +232,19 @@ fn main() {
     println!("Total WCET = {}", <Taskset as TotalWcet>::result);
     println!("Total Utilization = {}", <Taskset as TotalUtil>::result);
 
-    // Test comparing numbers
-    println!("Succ<Zero> vs Zero: {:?}", <Succ<Zero> as Cmp<Zero>>::Output::to_string());
+    // TODO: Move to test functions
+    println!("Succ<Zero> {} Zero", <Succ<Zero> as Cmp<Zero>>::Output::to_string());
+    println!("Succ<Succ<Zero>> {} Succ<Zero>", <Succ<Succ<Zero>> as Cmp<Succ<Zero>>>::Output::to_string());
+    println!("Succ<Zero> {} Succ<Zero>", <Succ<Zero> as Cmp<Succ<Zero>>>::Output::to_string());
+    println!("Succ<Zero> {} Succ<Succ<Zero>>", <Succ<Zero> as Cmp<Succ<Succ<Zero>>>>::Output::to_string());
+
+    println!("Pred<Zero> {} Zero", <Pred<Zero> as Cmp<Zero>>::Output::to_string());
+    println!("Zero {} Pred<Zero>", <Zero as Cmp<Pred<Zero>>>::Output::to_string());
+    println!("Pred<Pred<Zero>> {} Pred<Zero>", <Pred<Pred<Zero>> as Cmp<Pred<Zero>>>::Output::to_string());
+    println!("Pred<Zero> {} Pred<Pred<Zero>>", <Pred<Zero> as Cmp<Pred<Pred<Zero>>>>::Output::to_string());
+
+    println!("Succ<Zero> {} Pred<Zero>", <Succ<Zero> as Cmp<Pred<Zero>>>::Output::to_string());
+    println!("Pred<Zero> {} Succ<Zero>", <Pred<Zero> as Cmp<Succ<Zero>>>::Output::to_string());
+
+    println!("Max delta = {}", <Taskset as MaxDelta>::result);
 }
