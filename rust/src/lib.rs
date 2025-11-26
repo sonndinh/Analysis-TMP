@@ -134,6 +134,18 @@ impl<A: Max<B>, B> Max<Succ<B>> for Succ<A> {
     type Output = Succ<<A as Max<B>>::Output>;
 }
 
+impl<A: Max<B>, B> Max<Pred<B>> for Pred<A> {
+    type Output = Pred<<A as Max<B>>::Output>;
+}
+
+impl<N, P> Max<Succ<P>> for Pred<N> {
+    type Output = Succ<P>;
+}
+
+impl<P, N> Max<Pred<N>> for Succ<P> {
+    type Output = Succ<P>;
+}
+
 #[allow(dead_code)]
 type TypeMax<A, B> = <A as Max<B>>::Output;
 
@@ -157,4 +169,11 @@ fn test_max() {
     assert_eq!(<TypeMax<Succ<Zero>, Zero> as ToValue>::VALUE, 1);
     assert_eq!(<TypeMax<Succ<Zero>, Succ<Succ<Zero>>> as ToValue>::VALUE, 2);
     assert_eq!(<TypeMax<Succ<Succ<Succ<Zero>>>, Zero> as ToValue>::VALUE, 3);
+
+    assert_eq!(<TypeMax<Zero, Pred<Zero>> as ToValue>::VALUE, 0);
+    assert_eq!(<TypeMax<Pred<Zero>, Pred<Pred<Zero>>> as ToValue>::VALUE, -1);
+    assert_eq!(<TypeMax<Pred<Pred<Pred<Zero>>>, Pred<Pred<Zero>>> as ToValue>::VALUE, -2);
+
+    assert_eq!(<TypeMax<Succ<Zero>, Pred<Zero>> as ToValue>::VALUE, 1);
+    assert_eq!(<TypeMax<Pred<Pred<Zero>>, Succ<Succ<Zero>>> as ToValue>::VALUE, 2);
 }
