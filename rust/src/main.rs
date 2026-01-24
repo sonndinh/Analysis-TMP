@@ -108,7 +108,6 @@ impl<T: TaskTrait, U: MaxDelta + LastarHelper + TotalUtil> Lastar for Tasklist<T
 }
 
 // Lb - Compute busy period lower bound iteratively
-// LbSumHelper computes the sum: sum over all tasks of {ceiling(prev_value / period) * wcet}
 // Uses const generics to encode prev_value as a type parameter
 struct LbSumHelper<T, const PREV_VALUE: u64>(PhantomData<T>);
 
@@ -122,7 +121,6 @@ where
     LbSumHelper<U, PREV_VALUE>: LbSumValue<PREV_VALUE>
 {
     const RESULT: u64 = {
-        // Compute ceiling(PREV_VALUE / T::PERIOD) * T::WCET
         let ceiling = if PREV_VALUE % T::PERIOD as u64 > 0 {
             PREV_VALUE / T::PERIOD as u64 + 1
         } else {
@@ -139,20 +137,112 @@ impl<const PREV_VALUE: u64> LbSumValue<PREV_VALUE> for LbSumHelper<NullTask, PRE
     const RESULT: u64 = 0;
 }
 
-// LbIterHelper - manages iteration with both prev_value and iteration count as const parameters
-// This mirrors the C++ template structure: LbHelper<OrigList, prev_value, iter>
-struct LbIterHelper<T, const PREV_VALUE: u64, const ITER: u32>(PhantomData<T>);
+// // LbIterHelper - manages iteration with both prev_value and iteration count as const parameters
+// // This mirrors the C++ template structure: LbHelper<OrigList, prev_value, iter>
+// struct LbIterHelper<T, const PREV_VALUE: u64, const ITER: u32>(PhantomData<T>);
 
-trait LbIterValue<const PREV_VALUE: u64, const ITER: u32> {
+// trait LbIterValue<const PREV_VALUE: u64, const ITER: u32> {
+//     const RESULT: u64;
+// }
+
+// // Base case: iter == 0, return TotalWcet as initial value
+// impl<T: TaskTrait, U: TotalWcet, const PREV_VALUE: u64> LbIterValue<PREV_VALUE, 0>
+//     for LbIterHelper<Tasklist<T, U>, PREV_VALUE, 0>
+// {
+//     const RESULT: u64 = <Tasklist<T, U> as TotalWcet>::RESULT as u64;
+// }
+
+// impl<T: TaskTrait, U, const PREV_VALUE: u64, const ITER: u32> LbIterValue<PREV_VALUE, ITER> for LbIterHelper<Tasklist<T, U>, PREV_VALUE, ITER>
+// {
+
+// }
+
+struct TasklistWrapper<T, U, const PREV_VALUE: u64>(PhantomData<T>, PhantomData<U>);
+
+impl<T: TaskTrait, U, const PREV_VALUE: u64> TasklistWrapper<T, U, PREV_VALUE> where LbSumHelper<U, PREV_VALUE>: LbSumValue<PREV_VALUE> {
+    const fn next_value() -> u64 {
+        <LbSumHelper<Tasklist<T, U>, PREV_VALUE> as LbSumValue<PREV_VALUE>>::RESULT
+    }
+}
+
+// impl<T: TaskTrait, U> Tasklist<T, U> {
+//     const fn next_value<const PREV_VALUE: u64>() -> u64 {
+//         // TODO: To make this compile, U must be bounded such that LbSumHelper<U, PREV_VALUE>: LbSumValue<PREV_VALUE>
+//         <LbSumHelper<Tasklist<T, U>, PREV_VALUE> as LbSumValue<PREV_VALUE>>::RESULT
+//     }
+// }
+
+// Trait for computing Lb
+trait LbHelper<const PREV_VALUE: u64> {
     const RESULT: u64;
 }
 
-// Base case: iter == 0, return TotalWcet as initial value
-impl<T: TaskTrait, U: TotalWcet, const PREV_VALUE: u64> LbIterValue<PREV_VALUE, 0>
-    for LbIterHelper<Tasklist<T, U>, PREV_VALUE, 0>
-{
-    const RESULT: u64 = <Tasklist<T, U> as TotalWcet>::RESULT as u64;
+impl<T: TaskTrait, U, const PREV_VALUE: u64> LbHelper<PREV_VALUE> for TasklistWrapper<T, U, PREV_VALUE> where LbSumHelper<U, PREV_VALUE>: LbSumValue<PREV_VALUE> {
+    const RESULT: u64 = {
+        if Self::next_value() == PREV_VALUE {
+            PREV_VALUE
+        } else {
+            0
+        }
+    };
 }
+
+// impl<T: TaskTrait, U: TotalWcet, const PREV_VALUE: u64> Lb<PREV_VALUE, 0> for Tasklist<T, U> {
+//     const RESULT: u64 = <Tasklist<T, U> as TotalWcet>::RESULT as u64;
+// }
+
+// ITER starts from 1
+// impl<T: TaskTrait, U, const PREV_VALUE: u64> LbHelper<PREV_VALUE> for Tasklist<T, U> {
+//     // TODO: Try moving this const RESULT to struct Tasklist so it becomes associated constant.
+//     // See if it can reference the generic parameters after that.
+//     const RESULT: u64 = {
+//         // const MY_VALUE: u64 = <LbSumHelper<Tasklist<T, U>, PREV_VALUE> as LbSumValue<PREV_VALUE>>::RESULT;
+//         // let MY_VALUE: u64 = <LbSumHelper<Tasklist<T, U>, PREV_VALUE> as LbSumValue<PREV_VALUE>>::RESULT;
+//         // if MY_VALUE == PREV_VALUE {
+//         //     MY_VALUE
+//         // } else {
+//         //     // const NEXT_ITER: u32 = ITER + 1;
+//         //     // <Tasklist<T, U> as LbHelper<MY_VALUE, NEXT_ITER>>::RESULT
+//         //     <Tasklist<T, U> as LbHelper<MY_VALUE, const {ITER + 1}>>::RESULT
+//         // }
+
+
+//         // if <LbSumHelper<Tasklist<T, U>, PREV_VALUE> as LbSumValue<PREV_VALUE>>::RESULT == PREV_VALUE {
+//         //     PREV_VALUE
+//         // } else {
+//         //     <Tasklist<T, U> as LbHelper<<LbSumHelper<Tasklist<T, U>, PREV_VALUE> as LbSumValue<PREV_VALUE>>::RESULT/*, const {ITER + 1}*/>>::RESULT
+//         // }
+
+//         if Self::next_value::<PREV_VALUE>() == PREV_VALUE {
+//             PREV_VALUE
+//         } else {
+//             // <Tasklist<T, U> as LbHelper<{ Self::next_value::<PREV_VALUE>() }>>::RESULT
+//             0
+//         }
+//     };
+// }
+
+trait Lb {
+    const RESULT: u64;
+}
+
+// impl<T: TaskTrait, U: TotalWcet> Lb for Tasklist<T, U> {
+//     const RESULT: u64 = {
+//         // Initial value
+//         let mut prev_value = <Self as TotalWcet>::RESULT as u64;
+//         let mut iter = 0;
+
+//         // Iteratively compute new value until convergence
+//         loop {
+//             iter += 1;
+//             let new_value = <Self as LbHelper<prev_value, iter>>::RESULT;
+//             if new_value == prev_value {
+//                 break new_value;
+//             }
+//             prev_value = new_value;
+//         }
+//     };
+// }
 
 // Recursive case: compute new value and check convergence
 // Note: Due to Rust's const limitations, we can't do dynamic recursion here
@@ -160,26 +250,26 @@ impl<T: TaskTrait, U: TotalWcet, const PREV_VALUE: u64> LbIterValue<PREV_VALUE, 
 // For now, we'll demonstrate the structure and note this limitation
 
 // Lb trait - main interface
-trait Lb {
-    const RESULT: u64;
-}
+// trait Lb {
+//     const RESULT: u64;
+// }
 
-// For demonstration: implement Lb using runtime evaluation
-// A full compile-time solution would require nightly Rust with const_trait_impl feature
-impl<T: TaskTrait, U: TotalWcet> Lb for Tasklist<T, U> {
-    const RESULT: u64 = {
-        // To enable full compile-time evaluation, this would need:
-        // 1. Nightly Rust with #![feature(const_trait_impl)]
-        // 2. Const trait methods for LbSumValue
-        // 3. Const evaluation of the iteration loop
-        //
-        // For now, we use a const block that the compiler can evaluate
-        // if the types are concrete (not generic)
-        let init = <Self as TotalWcet>::RESULT as u64;
-        // Placeholder: in practice, would need const iteration
-        init
-    };
-}
+// // For demonstration: implement Lb using runtime evaluation
+// // A full compile-time solution would require nightly Rust with const_trait_impl feature
+// impl<T: TaskTrait, U: TotalWcet> Lb for Tasklist<T, U> {
+//     const RESULT: u64 = {
+//         // To enable full compile-time evaluation, this would need:
+//         // 1. Nightly Rust with #![feature(const_trait_impl)]
+//         // 2. Const trait methods for LbSumValue
+//         // 3. Const evaluation of the iteration loop
+//         //
+//         // For now, we use a const block that the compiler can evaluate
+//         // if the types are concrete (not generic)
+//         let init = <Self as TotalWcet>::RESULT as u64;
+//         // Placeholder: in practice, would need const iteration
+//         init
+//     };
+// }
 
 fn main() {
     struct Task1;
