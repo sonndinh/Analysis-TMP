@@ -266,7 +266,40 @@ impl<const L: u64> Pdf<L> for NullTask {
     const RESULT: u64 = 0;
 }
 
-// Max absolute deadline that is less than or equal to t
+// Max absolute deadline across all tasks that is less than t
+trait Dmax<const L: u64> {
+    const RESULT: u64;
+}
+
+impl<T: TaskTrait, U> Tasklist<T, U> {
+    // Helper for the largest absolute deadine of task T that is less than L
+    const fn dmax_value<const L: u64>() -> u64 {
+        if (T::DEADLINE as u64) < L {
+            let candidate = ((L - T::DEADLINE as u64) / T::PERIOD as u64) * T::PERIOD as u64 + T::DEADLINE as u64;
+            if candidate == L {
+                candidate - T::PERIOD as u64
+            } else {
+                candidate
+            }
+        } else {
+            0
+        }
+    }
+}
+
+impl<T: TaskTrait, U, const L: u64> Dmax<L> for Tasklist<T, U> where U: Dmax<L> {
+    const RESULT: u64 = {
+        if Self::dmax_value::<L>() > <U as Dmax<L>>::RESULT {
+            Self::dmax_value::<L>()
+        } else {
+            <U as Dmax<L>>::RESULT
+        }
+    };
+}
+
+impl<const L: u64> Dmax<L> for NullTask {
+    const RESULT: u64 = 0;
+}
 
 // Main schedulability test
 
