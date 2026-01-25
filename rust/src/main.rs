@@ -108,7 +108,7 @@ impl<T: TaskTrait, U: MaxDelta + LastarHelper + TotalUtil> Lastar for Tasklist<T
 }
 
 // Lb - Compute busy period lower bound iteratively
-// Uses const generics to encode prev_value as a type parameter
+// Compute the next value for Lb given the value from previous iteration.
 struct LbSumHelper<T, const PREV_VALUE: u64>(PhantomData<T>);
 
 trait LbSumValue<const PREV_VALUE: u64> {
@@ -182,6 +182,7 @@ impl<T: TaskTrait, U, const PREV_VALUE: u64> LbHelper<PREV_VALUE> for TasklistWr
         if Self::next_value() == PREV_VALUE {
             PREV_VALUE
         } else {
+            // TODO: We use a placeholder value here but need to figure out how to recursively call LbHelper with the new value.
             0
         }
     };
@@ -226,50 +227,49 @@ trait Lb {
     const RESULT: u64;
 }
 
-// impl<T: TaskTrait, U: TotalWcet> Lb for Tasklist<T, U> {
-//     const RESULT: u64 = {
-//         // Initial value
-//         let mut prev_value = <Self as TotalWcet>::RESULT as u64;
-//         let mut iter = 0;
+// Compute processor demand function h(t)
+trait Pdf<const L: u64> {
+    const RESULT: u64;
+}
 
-//         // Iteratively compute new value until convergence
-//         loop {
-//             iter += 1;
-//             let new_value = <Self as LbHelper<prev_value, iter>>::RESULT;
-//             if new_value == prev_value {
-//                 break new_value;
-//             }
-//             prev_value = new_value;
-//         }
-//     };
-// }
+impl<T: TaskTrait, U> Tasklist<T, U> {
+    // Helper to compute the pdf value associated with task T
+    const fn pdf_value<const L: u64>() -> u64 {
+        let sub: i64 = L as i64 - T::DEADLINE as i64;
+        let floor_value: i64 = {
+            if sub >= 0 {
+                sub / T::PERIOD as i64
+            } else {
+                if sub % T::PERIOD as i64 == 0 {
+                    sub / T::PERIOD as i64
+                } else {
+                    (sub / T::PERIOD as i64) - 1
+                }
+            }
+        };
+        if (1 + floor_value) < 0 {
+            0
+        } else {
+            (1 + floor_value) as u64 * T::WCET as u64
+        }
+    }
+}
 
-// Recursive case: compute new value and check convergence
-// Note: Due to Rust's const limitations, we can't do dynamic recursion here
-// This would require const trait methods or const closures (unstable features)
-// For now, we'll demonstrate the structure and note this limitation
+impl<T: TaskTrait, U, const L: u64> Pdf<L> for Tasklist<T, U> where U: Pdf<L>
+{
+    const RESULT: u64 = {
+        Self::pdf_value::<L>() + <U as Pdf<L>>::RESULT
+    };
+}
 
-// Lb trait - main interface
-// trait Lb {
-//     const RESULT: u64;
-// }
+impl<const L: u64> Pdf<L> for NullTask {
+    const RESULT: u64 = 0;
+}
 
-// // For demonstration: implement Lb using runtime evaluation
-// // A full compile-time solution would require nightly Rust with const_trait_impl feature
-// impl<T: TaskTrait, U: TotalWcet> Lb for Tasklist<T, U> {
-//     const RESULT: u64 = {
-//         // To enable full compile-time evaluation, this would need:
-//         // 1. Nightly Rust with #![feature(const_trait_impl)]
-//         // 2. Const trait methods for LbSumValue
-//         // 3. Const evaluation of the iteration loop
-//         //
-//         // For now, we use a const block that the compiler can evaluate
-//         // if the types are concrete (not generic)
-//         let init = <Self as TotalWcet>::RESULT as u64;
-//         // Placeholder: in practice, would need const iteration
-//         init
-//     };
-// }
+// Max absolute deadline that is less than or equal to t
+
+// Main schedulability test
+
 
 fn main() {
     struct Task1;

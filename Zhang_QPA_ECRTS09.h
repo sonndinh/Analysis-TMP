@@ -150,7 +150,7 @@ struct Pdf {
   static const u32 deadline = TList::Head::deadline;
 
   // For negative value, division operator rounds up while the floor operator rounds down.
-  static const i64 sub = static_cast<i64>(t - deadline);
+  static const i64 sub = static_cast<i64>(t) - static_cast<i64>(deadline);
   static const i64 floor_value = sub >= 0 ? sub / period : (sub % period == 0 ? sub / period : (sub / period) - 1);
   static const u64 my_value = static_cast<u64>((1 + floor_value) < 0 ? 0 : (1 + floor_value)) * wcet;
   static const u64 result = my_value + Pdf<typename TList::Tail, t, i - 1>::result;
