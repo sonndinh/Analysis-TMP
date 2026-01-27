@@ -83,28 +83,28 @@ impl LastarHelper for NullTask {
 }
 
 trait Lastar {
-    const RESULT: i64;
+    const RESULT: u64;
 }
 
 impl<T: TaskTrait, U: MaxDelta + LastarHelper + TotalUtil> Tasklist<T, U> {
-    const fn lastar() -> i64 {
+    const fn lastar() -> u64 {
         let total_util = <Self as TotalUtil>::RESULT;
         if total_util >= 1.0 {
-            return i64::MAX
+            return u64::MAX
         }
 
         let max_delta = <Self as MaxDelta>::RESULT as i64;
         let lastar_helper = (<Self as LastarHelper>::RESULT / (1.0 - total_util)) as i64;
         if max_delta > lastar_helper {
-            max_delta
+            max_delta as u64
         } else {
-            lastar_helper
+            lastar_helper as u64
         }
     }
 }
 
 impl<T: TaskTrait, U: MaxDelta + LastarHelper + TotalUtil> Lastar for Tasklist<T, U> {
-    const RESULT: i64 = Self::lastar();
+    const RESULT: u64 = Self::lastar();
 }
 
 // Lb - Compute busy period lower bound iteratively
@@ -302,7 +302,19 @@ impl<const L: u64> Dmax<L> for NullTask {
 }
 
 // Main schedulability test
+// In general, expressing running value such as the quantity t in the QPA test
+// as a const generic parameter of a trait or struct is challenging to write in Rust
+// due to current limitations in const generics and trait system.
+// May try to use const function inside impl block of struct.
 
+// Something like this does not compile:
+
+// impl<T: TaskTrait, U> Tasklist<T, U> where U: Dmax<{<Self as Lastar>::RESULT}> {
+//     const fn qpa() -> bool {
+//         let t = <Self as Dmax<{<Self as Lastar>::RESULT}>>::RESULT;
+//         true // placeholder
+//     }
+// }
 
 fn main() {
     struct Task1;
