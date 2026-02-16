@@ -1,7 +1,6 @@
-use core::ops::{Add, Sub, Div, Mul};
+use core::ops::{Add, Sub, Div, Mul, BitAnd};
 use std::marker::PhantomData;
-use std::ops::BitAnd;
-use typenum::{False, Integer, N5, P1, P5, P7, P10, P12, P14, P15, P100, P1000000000000000000, True, Z0};
+use typenum::{Bit, False, Integer, N5, P1, P5, P7, P10, P12, P14, P15, P100, P200, P1000000000000000000, True, Z0};
 use typenum::{Sum, Diff, Prod, Quot, Min, Max, Maximum, IsLess, IsEqual, IsLessOrEqual, IsGreater, And};
 
 type PMax = P1000000000000000000;
@@ -70,12 +69,13 @@ impl<L> Pdf<L> for Nulltask
 }
 
 impl<T: Task, U: Pdf<L>, L> Pdf<L> for Tasklist<T, U>
-where L: Sub<T::Deadline>,
-<L as Sub<T::Deadline>>::Output: Div<T::Period>,
-<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
-Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
-<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
-<<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>
+where
+    L: Sub<T::Deadline>,
+    <L as Sub<T::Deadline>>::Output: Div<T::Period>,
+    <<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
+    Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
+    <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
+    <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>
 {
     type MaxOperand = Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>;
     type MyValue = <<Self::MaxOperand as Max<Z0>>::Output as Mul<T::Wcet>>::Output;
@@ -111,18 +111,19 @@ type DmaxHelper<L, T> = Sum<Prod<Quot<Diff<L, <T as Task>::Deadline>, <T as Task
 type DmaxHelperAdjusted<L, T> = <<DmaxHelper<L, T> as IsEqual<L>>::Output as If<Diff<DmaxHelper<L, T>, <T as Task>::Period>, DmaxHelper<L, T>>>::Output;
 
 impl<T: Task, U: Dmax<L>, L> Dmax<L> for Tasklist<T, U>
-where L: Sub<T::Deadline>,
-Diff<L, T::Deadline>: Div<T::Period>,
-Quot<Diff<L, T::Deadline>, T::Period>: Mul<T::Period>,
-Prod<Quot<Diff<L, T::Deadline>, T::Period>, T::Period>: Add<T::Deadline>,
-DmaxHelper<L, T>: Max<<U as Dmax<L>>::Output>,
-DmaxHelper<L, T>: IsEqual<L>,
-DmaxHelper<L, T>: Sub<T::Period>,
-<DmaxHelper<L, T> as IsEqual<L>>::Output: If<Diff<DmaxHelper<L, T>, T::Period>, DmaxHelper<L, T>>,
-<<DmaxHelper<L, T> as IsEqual<L>>::Output as If<Diff<DmaxHelper<L, T>, T::Period>, DmaxHelper<L, T>>>::Output: Max<<U as Dmax<L>>::Output>,
-T::Deadline: IsLess<L>,
-DmaxHelperAdjusted<L, T>: Max<<U as Dmax<L>>::Output>,
-<T::Deadline as IsLess<L>>::Output: If<Maximum<DmaxHelperAdjusted<L, T>, <U as Dmax<L>>::Output>, Z0>
+where
+    L: Sub<T::Deadline>,
+    Diff<L, T::Deadline>: Div<T::Period>,
+    Quot<Diff<L, T::Deadline>, T::Period>: Mul<T::Period>,
+    Prod<Quot<Diff<L, T::Deadline>, T::Period>, T::Period>: Add<T::Deadline>,
+    DmaxHelper<L, T>: Max<<U as Dmax<L>>::Output>,
+    DmaxHelper<L, T>: IsEqual<L>,
+    DmaxHelper<L, T>: Sub<T::Period>,
+    <DmaxHelper<L, T> as IsEqual<L>>::Output: If<Diff<DmaxHelper<L, T>, T::Period>, DmaxHelper<L, T>>,
+    <<DmaxHelper<L, T> as IsEqual<L>>::Output as If<Diff<DmaxHelper<L, T>, T::Period>, DmaxHelper<L, T>>>::Output: Max<<U as Dmax<L>>::Output>,
+    T::Deadline: IsLess<L>,
+    DmaxHelperAdjusted<L, T>: Max<<U as Dmax<L>>::Output>,
+    <T::Deadline as IsLess<L>>::Output: If<Maximum<DmaxHelperAdjusted<L, T>, <U as Dmax<L>>::Output>, Z0>
 {
     type Output = <<T::Deadline as IsLess<L>>::Output as If<Maximum<DmaxHelperAdjusted<L, T>, <U as Dmax<L>>::Output>, Z0>>::Output;
 }
@@ -135,31 +136,61 @@ trait QpaCondition<L>
     type Output;
 }
 
+type DminOutput<T, U> = <<T as Task>::Deadline as Min<<U as Dmin>::Output>>::Output;
+type PdfMaxOperand<T, L> = Sum<<<L as Sub<<T as Task>::Deadline>>::Output as Div<<T as Task>::Period>>::Output, P1>;
+type PdfMyValue<T, L> = <<PdfMaxOperand<T, L> as Max<Z0>>::Output as Mul<<T as Task>::Wcet>>::Output;
+type PdfOutput<T, U, L> = <PdfMyValue<T, L> as Add<<U as Pdf<L>>::Output>>::Output;
+
 impl<T: Task, U: Pdf<L> + Dmin, L> QpaCondition<L> for Tasklist<T, U>
-// Trait bounds from impl Pdf<L> for Tasklist
-where L: Sub<T::Deadline>,
-<L as Sub<T::Deadline>>::Output: Div<T::Period>,
-<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
-Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
-<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
-<<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
-// Other bounds
-PdfValue<T, U, L>: IsLessOrEqual<L>,
-T::Deadline: Min<<U as Dmin>::Output>,
-PdfValue<T, U, L>: IsGreater<DminValue<T, U>>,
-// <PdfValue<T, U, L> as IsLessOrEqual<L>>::Output: BitAnd<<PdfValue<T, U, L> as IsGreater<DminValue<T, U>>>::Output>
+where
+    // Trait bounds needed for using PdfOutput type alias.
+    // These are also trait bounds needed to impl Pdf<L> for Tasklist<T, U>.
+    // Thus we can use PdfValue type alias in the Output associated type, i.e.,
+    // can cast Tasklist<T, U> as Pdf<L>.
+    L: Sub<T::Deadline>,
+    <L as Sub<T::Deadline>>::Output: Div<T::Period>,
+    <<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
+    Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
+    <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
+    <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
+    // Bounds needed for using DminOutput type alias
+    T::Deadline: Min<<U as Dmin>::Output>,
+    // Now we can use the type aliases.
+    // PdfOutput is essentially the same type as the Output associated type from
+    // impl Pdf<L> block for Tasklist<T, U>. But if we express the bound through
+    // Tasklist, e.g, <Tasklist<T, U> as Pdf<L>>::Output: IsLessOrEqual<L>,
+    // since Tasklist is a concrete type, Rust will do thorough bound proof.
+    // Whereas, here expressing through PdfOutput with abstract types (T, U, L)
+    // can defer some checks and accept the IsLessOrEqual bound, for example.
+    PdfOutput<T, U, L>: IsLessOrEqual<L>,
+    PdfOutput<T, U, L>: IsGreater<DminOutput<T, U>>,
+    <PdfOutput<T, U, L> as IsLessOrEqual<L>>::Output: BitAnd<<PdfOutput<T, U, L> as IsGreater<DminOutput<T, U>>>::Output>
 {
     type Output = And<<PdfValue<T, U, L> as IsLessOrEqual<L>>::Output, <PdfValue<T, U, L> as IsGreater<DminValue<T, U>>>::Output>;
 }
 
-trait QpaHelper
-{
-    type Output;
-}
-
-// impl<T: Task, U> QpaHelper for Tasklist<T, U>
+// trait QpaHelper
 // {
+//     type NextBusyPeriod;
+//     type Output;
+// }
 
+// // Assign updated_L := Pdf(current_L)
+// type UpdatedL<T, U, L> = <L as Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>>::Output;
+
+// impl<T: Task, U: Pdf<L> + Dmin, L> QpaHelper for (T, U, L)
+// where
+//     Tasklist<T, U>: QpaCondition<L, Output = True>,
+//     L: Sub<T::Deadline>,
+//     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
+//     <<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
+//     Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
+//     <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
+//     <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
+// {
+//     // TODO: Update L
+//     type NextBusyPeriod = UpdatedL<T, U, L>;
+//     type Output = <(T, U, Self::NextBusyPeriod) as QpaHelper>::Output;
 // }
 
 #[test]
@@ -201,4 +232,10 @@ fn test() {
 
     type DmaxOf100 = <Taskset as Dmax<P100>>::Output;
     println!("Dmax(100): {}", <DmaxOf100 as Integer>::to_i32());
+
+    type QpaConditionOf100 = <Taskset as QpaCondition<P100>>::Output;
+    println!("QpaCondition(100): {}", <QpaConditionOf100 as Bit>::to_bool());
+
+    type QpaConditionOf200 = <Taskset as QpaCondition<P200>>::Output;
+    println!("QpaCondition(200): {}", <QpaConditionOf200 as Bit>::to_bool());
 }
