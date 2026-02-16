@@ -4,7 +4,7 @@ ifndef LOKI_ROOT
 endif
 
 BUILD_DIR = build
-SRC_DIR = ..
+SRC_DIR = ../include
 # Turn off debug logs with: make NDEBUG_FLAG=-DNDEBUG
 NDEBUG_FLAG =
 

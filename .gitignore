@@ -1,4 +1,4 @@
 .vscode/
-loki-*/
-tests/build/
+c++/loki-*/
+c++/tests/build/
 rust/target
