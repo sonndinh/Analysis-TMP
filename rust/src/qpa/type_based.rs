@@ -169,33 +169,59 @@ where
     type Output = And<<PdfValue<T, U, L> as IsLessOrEqual<L>>::Output, <PdfValue<T, U, L> as IsGreater<DminValue<T, U>>>::Output>;
 }
 
-trait QpaHelper
-{
+trait QpaDispatch<T, U, L> {
     type Output;
 }
 
-// Assign updated_L := Pdf(current_L)
-type UpdatedL<T, U, L> = <L as Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>>::Output;
+// Base case
+impl<T, U, L> QpaDispatch<T, U, L> for False {
+    type Output = L;
+}
 
-impl<T: Task, U: Pdf<L> + Dmin, L> QpaHelper for (T, U, L)
+// Recursive case
+impl<T: Task, U: Pdf<L> + Dmin, L> QpaDispatch<T, U, L> for True
 where
-    Tasklist<T, U>: QpaCondition<L, Output = True>,
-    // Trait bounds needed for using PdfOutput type alias.
-    L: IsGreater<T::Deadline, Output = True> + Sub<T::Deadline>,
+    // Bounds for PdfOutput type alias
+    L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
     Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
     <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
     <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
-    // Bounds for rhs of the Output associated type.
-    // L: IsGreater<PdfOutput<T, U, L>, Output = True> + Sub<PdfOutput<T, U, L>>,
-    // L: IsGreater<<L as Sub<PdfOutput<T, U, L>>>::Output, Output = True> + Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>,
+    // Bounds for UpdatedL
     L: Sub<PdfOutput<T, U, L>>,
     L: Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>,
-    // Bounds for recursive call to QpaHelper.
-    (T, U, UpdatedL<T, U, L>): QpaHelper
+    // Recursive call
+    (T, U, UpdatedL<T, U, L>): QpaHelper,
 {
     type Output = <(T, U, UpdatedL<T, U, L>) as QpaHelper>::Output;
+}
+
+trait QpaHelper
+{
+    type Output;
+}
+
+// Placeholder for updating L to PdfOutput value. Need updates to follow the QPA algo.
+type UpdatedL<T, U, L> = <L as Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>>::Output;
+
+impl<T: Task, U: Pdf<L> + Dmin, L> QpaHelper for (T, U, L)
+where
+    Tasklist<T, U>: QpaCondition<L>,
+    // Trait bounds needed for using PdfOutput type alias.
+    // L: Sub<T::Deadline>,
+    // <L as Sub<T::Deadline>>::Output: Div<T::Period>,
+    // <<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
+    // Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
+    // <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
+    // <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
+    // Bounds for rhs of the Output associated type.
+    // L: Sub<PdfOutput<T, U, L>>,
+    // L: Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>,
+    // For dispatching to QpaDispatch
+    <Tasklist<T, U> as QpaCondition<L>>::Output: QpaDispatch<T, U, L>,
+{
+    type Output = <<Tasklist<T, U> as QpaCondition<L>>::Output as QpaDispatch<T, U, L>>::Output;
 }
 
 #[test]
