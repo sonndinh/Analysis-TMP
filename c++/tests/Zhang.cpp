@@ -143,9 +143,31 @@ void test3() {
   test_common<Taskset>();
 }
 
+void test4() {
+  struct Task1 {
+    enum {
+      wcet = 5,
+      deadline = 10,
+      period = 15
+    };
+  };
+
+  struct Task2 {
+    enum {
+      wcet = 7,
+      deadline = 12,
+      period = 14
+    };
+  };
+
+  using Taskset = LOKI_TYPELIST_2(Task1, Task2);
+  test_common<Taskset>();
+}
+
 int main() {
   test1();
   test2();
   test3();
+  test4();
   return 0;
 }

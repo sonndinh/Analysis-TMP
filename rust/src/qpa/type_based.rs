@@ -208,12 +208,12 @@ where
     Tasklist<T, U>: Dmax<L>,
     <PdfOutput<T, U, L> as IsLess<L>>::Output: If<PdfOutput<T, U, L>, <Tasklist<T, U> as Dmax<L>>::Output>,
     // Recursive call
-    (T, U, UpdatedL<T, U, L>): QpaHelper,
+    (T, U, UpdatedL<T, U, L>): Qpa,
 {
-    type Output = <(T, U, UpdatedL<T, U, L>) as QpaHelper>::Output;
+    type Output = <(T, U, UpdatedL<T, U, L>) as Qpa>::Output;
 }
 
-trait QpaHelper
+trait Qpa
 {
     type Output;
 }
@@ -221,20 +221,9 @@ trait QpaHelper
 // New L value computed within the iteration of the QPA's while loop
 type UpdatedL<T, U, L> = <<PdfOutput<T, U, L> as IsLess<L>>::Output as If<PdfOutput<T, U, L>, <Tasklist<T, U> as Dmax<L>>::Output>>::Output;
 
-impl<T: Task, U: Pdf<L> + Dmin, L> QpaHelper for (T, U, L)
+impl<T, U, L> Qpa for (T, U, L)
 where
     Tasklist<T, U>: QpaCondition<L>,
-    // Trait bounds needed for using PdfOutput type alias.
-    // L: Sub<T::Deadline>,
-    // <L as Sub<T::Deadline>>::Output: Div<T::Period>,
-    // <<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
-    // Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
-    // <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
-    // <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
-    // Bounds for rhs of the Output associated type.
-    // L: Sub<PdfOutput<T, U, L>>,
-    // L: Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>,
-    // For dispatching to QpaDispatch
     <Tasklist<T, U> as QpaCondition<L>>::Output: QpaDispatch<T, U, L>,
 {
     type Output = <<Tasklist<T, U> as QpaCondition<L>>::Output as QpaDispatch<T, U, L>>::Output;
@@ -286,6 +275,9 @@ fn test() {
     type QpaConditionOf200 = <Taskset as QpaCondition<P200>>::Output;
     println!("QpaCondition(200): {}", <QpaConditionOf200 as Bit>::to_bool());
 
-    type QpaHelperOf100 = <(Task1, Tasklist<Task2, Nulltask>, P100) as QpaHelper>::Output;
-    println!("QpaHelper(100): {}", <QpaHelperOf100 as Bit>::to_bool());
+    type QpaOf100 = <(Task1, Tasklist<Task2, Nulltask>, P100) as Qpa>::Output;
+    println!("Qpa(100): {}", <QpaOf100 as Bit>::to_bool());
+
+    type QpaOf12 = <(Task1, Tasklist<Task2, Nulltask>, P12) as Qpa>::Output;
+    println!("Qpa(12): {}", <QpaOf12 as Bit>::to_bool());
 }
