@@ -173,9 +173,24 @@ trait QpaDispatch<T, U, L> {
     type Output;
 }
 
-// Base case
-impl<T, U, L> QpaDispatch<T, U, L> for False {
-    type Output = L;
+// Base case.
+// This happens when the QPA condition is false and the QPA loop stops.
+// It can return schedulability result here.
+impl<T: Task, U: Pdf<L>, L> QpaDispatch<T, U, L> for False
+where
+    Tasklist<T, U>: Dmin,
+    // Bounds for PdfOutput type alias
+    L: Sub<T::Deadline>,
+    <L as Sub<T::Deadline>>::Output: Div<T::Period>,
+    <<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output: Add<P1>,
+    Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1>: Max<Z0>,
+    <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
+    <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
+    // Other bounds for the Output associated type
+    PdfOutput<T, U, L>: IsLessOrEqual<DminValue<T, U>>,
+    <PdfOutput<T, U, L> as IsLessOrEqual<DminValue<T, U>>>::Output: If<True, False>
+{
+    type Output = <<PdfOutput<T, U, L> as IsLessOrEqual<DminValue<T, U>>>::Output as If<True, False>>::Output;
 }
 
 // Recursive case
@@ -189,8 +204,9 @@ where
     <Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output: Mul<T::Wcet>,
     <<Sum<<<L as Sub<T::Deadline>>::Output as Div<T::Period>>::Output, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>,
     // Bounds for UpdatedL
-    L: Sub<PdfOutput<T, U, L>>,
-    L: Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>,
+    PdfOutput<T, U, L>: IsLess<L>,
+    Tasklist<T, U>: Dmax<L>,
+    <PdfOutput<T, U, L> as IsLess<L>>::Output: If<PdfOutput<T, U, L>, <Tasklist<T, U> as Dmax<L>>::Output>,
     // Recursive call
     (T, U, UpdatedL<T, U, L>): QpaHelper,
 {
@@ -202,8 +218,8 @@ trait QpaHelper
     type Output;
 }
 
-// Placeholder for updating L to PdfOutput value. Need updates to follow the QPA algo.
-type UpdatedL<T, U, L> = <L as Sub<<L as Sub<PdfOutput<T, U, L>>>::Output>>::Output;
+// New L value computed within the iteration of the QPA's while loop
+type UpdatedL<T, U, L> = <<PdfOutput<T, U, L> as IsLess<L>>::Output as If<PdfOutput<T, U, L>, <Tasklist<T, U> as Dmax<L>>::Output>>::Output;
 
 impl<T: Task, U: Pdf<L> + Dmin, L> QpaHelper for (T, U, L)
 where
@@ -271,5 +287,5 @@ fn test() {
     println!("QpaCondition(200): {}", <QpaConditionOf200 as Bit>::to_bool());
 
     type QpaHelperOf100 = <(Task1, Tasklist<Task2, Nulltask>, P100) as QpaHelper>::Output;
-    println!("QpaHelper(100): {}", <QpaHelperOf100 as Integer>::to_i32());
+    println!("QpaHelper(100): {}", <QpaHelperOf100 as Bit>::to_bool());
 }
