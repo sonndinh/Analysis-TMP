@@ -1,6 +1,6 @@
 use core::ops::{Add, Sub, Div, Mul, BitAnd, Rem};
 use std::marker::PhantomData;
-use typenum::{Bit, False, Integer, N5, P1, P5, P7, P10, P12, P14, P15, P100, P200, P1000000000000000000, True, Z0};
+use typenum::{Bit, False, Integer, P1, P5, P7, P10, P12, P14, P15, P100, P200, P1000000000000000000, True, Z0};
 use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsLess, IsEqual, IsLessOrEqual, IsGreater, And};
 
 type PMax = P1000000000000000000;
@@ -156,7 +156,7 @@ trait LbStopCondition<PrevL, L>
     type Output;
 }
 
-impl<T, U, PrevL, L> LbStopCondition<PrevL, L> for (T, U)
+impl<PrevL, L> LbStopCondition<PrevL, L> for ()
 where
     PrevL: IsEqual<L>
 {
@@ -214,13 +214,12 @@ trait Lb
     type Output;
 }
 
-// Start computing Lb with <(T, U, 0, TotalWcet) as Lb>::Output
 impl<T, U, PrevL, L> Lb for (T, U, PrevL, L)
 where
-    (T, U): LbStopCondition<PrevL, L>,
-    <(T, U) as LbStopCondition<PrevL, L>>::Output: LbDispatch<T, U, L>
+    (): LbStopCondition<PrevL, L>,
+    <() as LbStopCondition<PrevL, L>>::Output: LbDispatch<T, U, L>
 {
-    type Output = <<(T, U) as LbStopCondition<PrevL, L>>::Output as LbDispatch<T, U, L>>::Output;
+    type Output = <<() as LbStopCondition<PrevL, L>>::Output as LbDispatch<T, U, L>>::Output;
 }
 
 type DminValue<T, U> = <Tasklist<T, U> as Dmin>::Output;
@@ -327,11 +326,6 @@ where
 
 #[test]
 fn test() {
-    type X = Sum<P10, N5>;
-    let result = <X as Integer>::to_i32();
-    assert_eq!(result, 5);
-    println!("Result is {}", result);
-
     struct Task1;
     impl Task for Task1 {
         type Wcet = P5;
@@ -379,4 +373,7 @@ fn test() {
 
     type MyLb = <(Task1, Tasklist<Task2, Nulltask>, Z0, SumWcet) as Lb>::Output;
     println!("Lb: {}", <MyLb as Integer>::to_i32());
+
+    type MyQpa = <(Task1, Tasklist<Task2, Nulltask>, MyLb) as Qpa>::Output;
+    println!("Qpa: {}", <MyQpa as Bit>::to_bool());
 }
