@@ -1,7 +1,7 @@
-use core::ops::{Add, Sub, Div, Mul, BitAnd};
+use core::ops::{Add, Sub, Div, Mul, BitAnd, Rem};
 use std::marker::PhantomData;
 use typenum::{Bit, False, Integer, N5, P1, P5, P7, P10, P12, P14, P15, P100, P200, P1000000000000000000, True, Z0};
-use typenum::{Sum, Diff, Prod, Quot, Min, Max, Maximum, IsLess, IsEqual, IsLessOrEqual, IsGreater, And};
+use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsLess, IsEqual, IsLessOrEqual, IsGreater, And};
 
 type PMax = P1000000000000000000;
 
@@ -33,7 +33,8 @@ impl TotalWcet for Nulltask
 }
 
 impl<T: Task, U: TotalWcet> TotalWcet for Tasklist<T, U>
-where <T as Task>::Wcet: Add<<U as TotalWcet>::Output>
+where
+    <T as Task>::Wcet: Add<<U as TotalWcet>::Output>
 {
     type Output = Sum<<T as Task>::Wcet, <U as TotalWcet>::Output>;
 }
@@ -49,7 +50,8 @@ impl Dmin for Nulltask
 }
 
 impl<T: Task, U: Dmin> Dmin for Tasklist<T, U>
-where <T as Task>::Deadline: Min<<U as Dmin>::Output>
+where
+    <T as Task>::Deadline: Min<<U as Dmin>::Output>
 {
     type Output = <T::Deadline as Min<<U as Dmin>::Output>>::Output;
 }
@@ -128,6 +130,99 @@ where
     type Output = <<T::Deadline as IsLess<L>>::Output as If<Maximum<DmaxHelperAdjusted<L, T>, <U as Dmax<L>>::Output>, Z0>>::Output;
 }
 
+// This only compute the max{(D1 - T1), ..., (Dn - Tn)} part of LaStar.
+// TODO: The remaining operand requires floating point values for utilization.
+trait LaStar
+{
+    type Output;
+}
+
+impl<T: Task, U: LaStar> LaStar for Tasklist<T, U>
+where
+    T::Deadline: Sub<T::Period>,
+    Diff<T::Deadline, T::Period>: Max<<U as LaStar>::Output>
+{
+    type Output = <Diff<T::Deadline, T::Period> as Max<<U as LaStar>::Output>>::Output;
+}
+
+impl LaStar for Nulltask
+{
+    type Output = Z0;
+}
+
+// Stop when Lb value converges
+trait LbStopCondition<PrevL, L>
+{
+    type Output;
+}
+
+impl<T, U, PrevL, L> LbStopCondition<PrevL, L> for (T, U)
+where
+    PrevL: IsEqual<L>
+{
+    type Output = <PrevL as IsEqual<L>>::Output;
+}
+
+trait LbHelper
+{
+    type Output;
+}
+
+type LbCeilTerm<T, L> = <<Mod<L, <T as Task>::Period> as IsGreater<Z0>>::Output as If<Sum<Quot<L, <T as Task>::Period>, P1>, Quot<L, <T as Task>::Period>>>::Output;
+
+// Return the next Lb value in Output given the current Lb in L
+impl<T: Task, U: LbHelper, L> LbHelper for (T, U, L)
+where
+    // Bounds for LbCeilTerm type alias
+    L: Rem<T::Period>,
+    Mod<L, T::Period>: IsGreater<Z0>,
+    L: Div<T::Period>,
+    Quot<L, T::Period>: Add<P1>,
+    <Mod<L, T::Period> as IsGreater<Z0>>::Output: If<Sum<Quot<L, T::Period>, P1>, Quot<L, T::Period>>,
+    // Bounds for the Output associated type
+    LbCeilTerm<T, L>: Mul<T::Wcet>,
+    Prod<LbCeilTerm<T, L>, T::Wcet>: Add<<U as LbHelper>::Output>,
+{
+    type Output = Sum<Prod<LbCeilTerm<T, L>, T::Wcet>, <U as LbHelper>::Output>;
+}
+
+impl LbHelper for Nulltask
+{
+    type Output = Z0;
+}
+
+trait LbDispatch<T, U, L>
+{
+    type Output;
+}
+
+impl<T, U, L> LbDispatch<T, U, L> for False
+{
+    type Output = L;
+}
+
+impl<T, U, L> LbDispatch<T, U, L> for True
+where
+    (T, U, L): LbHelper,
+    (T, U, L, <(T, U, L) as LbHelper>::Output): Lb
+{
+    type Output = <(T, U, L, <(T, U, L) as LbHelper>::Output) as Lb>::Output;
+}
+
+trait Lb
+{
+    type Output;
+}
+
+// Start computing Lb with <(T, U, 0, TotalWcet) as Lb>::Output
+impl<T, U, PrevL, L> Lb for (T, U, PrevL, L)
+where
+    (T, U): LbStopCondition<PrevL, L>,
+    <(T, U) as LbStopCondition<PrevL, L>>::Output: LbDispatch<T, U, L>
+{
+    type Output = <<(T, U) as LbStopCondition<PrevL, L>>::Output as LbDispatch<T, U, L>>::Output;
+}
+
 type DminValue<T, U> = <Tasklist<T, U> as Dmin>::Output;
 type PdfValue<T, U, L> = <Tasklist<T, U> as Pdf<L>>::Output;
 
@@ -169,7 +264,8 @@ where
     type Output = And<<PdfValue<T, U, L> as IsLessOrEqual<L>>::Output, <PdfValue<T, U, L> as IsGreater<DminValue<T, U>>>::Output>;
 }
 
-trait QpaDispatch<T, U, L> {
+trait QpaDispatch<T, U, L>
+{
     type Output;
 }
 
@@ -256,8 +352,8 @@ fn test() {
     let util = <Y as Integer>::I32;
     println!("Utilization of task1: {}", util);
 
-    type Z = <Taskset as TotalWcet>::Output;
-    let total_wcet = <Z as Integer>::to_i32();
+    type SumWcet = <Taskset as TotalWcet>::Output;
+    let total_wcet = <SumWcet as Integer>::to_i32();
     println!("Total wcet: {}", total_wcet);
 
     type MinDeadline = <Taskset as Dmin>::Output;
@@ -280,4 +376,7 @@ fn test() {
 
     type QpaOf12 = <(Task1, Tasklist<Task2, Nulltask>, P12) as Qpa>::Output;
     println!("Qpa(12): {}", <QpaOf12 as Bit>::to_bool());
+
+    type MyLb = <(Task1, Tasklist<Task2, Nulltask>, Z0, SumWcet) as Lb>::Output;
+    println!("Lb: {}", <MyLb as Integer>::to_i32());
 }
