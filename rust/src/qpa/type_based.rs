@@ -188,8 +188,9 @@ trait LbHelper
 type LbCeilTerm<T, L> = <<Mod<L, <T as Task>::Period> as IsGreater<Z0>>::Output as If<Sum<Quot<L, <T as Task>::Period>, P1>, Quot<L, <T as Task>::Period>>>::Output;
 
 // Return the next Lb value in Output given the current Lb in L
-impl<T: Task, U: LbHelper, L> LbHelper for (T, U, L)
+impl<T: Task, U, L> LbHelper for (Tasklist<T, U>, L)
 where
+    (U, L): LbHelper,
     // Bounds for LbCeilTerm type alias
     L: Rem<T::Period>,
     Mod<L, T::Period>: IsGreater<Z0>,
@@ -198,12 +199,12 @@ where
     <Mod<L, T::Period> as IsGreater<Z0>>::Output: If<Sum<Quot<L, T::Period>, P1>, Quot<L, T::Period>>,
     // Bounds for the Output associated type
     LbCeilTerm<T, L>: Mul<T::Wcet>,
-    Prod<LbCeilTerm<T, L>, T::Wcet>: Add<<U as LbHelper>::Output>,
+    Prod<LbCeilTerm<T, L>, T::Wcet>: Add<<(U, L) as LbHelper>::Output>,
 {
-    type Output = Sum<Prod<LbCeilTerm<T, L>, T::Wcet>, <U as LbHelper>::Output>;
+    type Output = Sum<Prod<LbCeilTerm<T, L>, T::Wcet>, <(U, L) as LbHelper>::Output>;
 }
 
-impl LbHelper for Nulltask
+impl<L> LbHelper for (Nulltask, L)
 {
     type Output = Z0;
 }
@@ -213,17 +214,17 @@ trait LbDispatch<T, U, L>
     type Output;
 }
 
-impl<T, U, L> LbDispatch<T, U, L> for False
+impl<T, U, L> LbDispatch<T, U, L> for True
 {
     type Output = L;
 }
 
-impl<T, U, L> LbDispatch<T, U, L> for True
+impl<T, U, L> LbDispatch<T, U, L> for False
 where
-    (T, U, L): LbHelper,
-    (T, U, L, <(T, U, L) as LbHelper>::Output): Lb
+    (Tasklist<T, U>, L): LbHelper,
+    (T, U, L, <(Tasklist<T, U>, L) as LbHelper>::Output): Lb
 {
-    type Output = <(T, U, L, <(T, U, L) as LbHelper>::Output) as Lb>::Output;
+    type Output = <(T, U, L, <(Tasklist<T, U>, L) as LbHelper>::Output) as Lb>::Output;
 }
 
 trait Lb
