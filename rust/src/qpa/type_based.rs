@@ -1,6 +1,6 @@
 use core::ops::{Add, Sub, Div, Mul, BitAnd, Rem};
 use std::marker::PhantomData;
-use typenum::{Bit, False, Integer, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P12, P14, P15, P16, P17, P18, P19, P26, P31, P90, P96, P100, P160, P200, P280, P660, P800, P1000, P1000000000000000000, True, Z0};
+use typenum::{Bit, False, Integer, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P12, P14, P15, P16, P17, P18, P19, P26, P31, P90, P96, P100, P160, P200, P280, P404, P660, P800, P1000, P1000000000000000000, True, Z0};
 use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsLess, IsEqual, IsLessOrEqual, IsGreater, And};
 
 type P2000 = typenum::op!(P1000 * P2);
@@ -10,6 +10,7 @@ type P6000 = typenum::op!(P1000 * P6);
 type P9000 = typenum::op!(P1000 * P9);
 type P9800 = typenum::op!(P1000 * P9 + P800);
 type P12000 = typenum::op!(P1000 * P12);
+type P15404 = typenum::op!(P1000 * P15 + P404);
 type P17000 = typenum::op!(P1000 * P17);
 type P18000 = typenum::op!(P1000 * P18);
 type P31000 = typenum::op!(P1000 * P31);
@@ -141,10 +142,10 @@ where
     <DmaxHelper<L, T> as IsEqual<L>>::Output: If<Diff<DmaxHelper<L, T>, T::Period>, DmaxHelper<L, T>>,
     <<DmaxHelper<L, T> as IsEqual<L>>::Output as If<Diff<DmaxHelper<L, T>, T::Period>, DmaxHelper<L, T>>>::Output: Max<<U as Dmax<L>>::Output>,
     T::Deadline: IsLess<L>,
-    DmaxHelperAdjusted<L, T>: Max<<U as Dmax<L>>::Output>,
-    <T::Deadline as IsLess<L>>::Output: If<Maximum<DmaxHelperAdjusted<L, T>, <U as Dmax<L>>::Output>, Z0>
+    <T::Deadline as IsLess<L>>::Output: If<DmaxHelperAdjusted<L, T>, Z0>,
+    <<T::Deadline as IsLess<L>>::Output as If<DmaxHelperAdjusted<L, T>, Z0>>::Output: Max<<U as Dmax<L>>::Output>
 {
-    type Output = <<T::Deadline as IsLess<L>>::Output as If<Maximum<DmaxHelperAdjusted<L, T>, <U as Dmax<L>>::Output>, Z0>>::Output;
+    type Output = Maximum<<<T::Deadline as IsLess<L>>::Output as If<DmaxHelperAdjusted<L, T>, Z0>>::Output, <U as Dmax<L>>::Output>;
 }
 
 // This only compute the max{(D1 - T1), ..., (Dn - Tn)} part of LaStar.
@@ -494,8 +495,22 @@ fn test2() {
     println!("Total wcet: {}", total_wcet);
 
     type MyLb = <(Task1, RemainingTasks, Z0, SumWcet) as Lb>::Output;
+    assert_eq!(<MyLb as Integer>::to_i32(), 16984);
     println!("Lb: {}", <MyLb as Integer>::to_i32());
 
-    type MyQpa = <(Task1, RemainingTasks, MyLb) as Qpa>::Output;
+    type Dmax16984 = <Tasklist<Task1, RemainingTasks> as Dmax<MyLb>>::Output;
+    println!("Dmax(16984): {}", <Dmax16984 as Integer>::to_i32());
+
+    // La* is 15404
+    type Dmax15404 = <Tasklist<Task1, RemainingTasks> as Dmax<P15404>>::Output;
+    assert_eq!(<Dmax15404 as Integer>::to_i32(), 15400);
+    println!("Dmax(15404): {}", <Dmax15404 as Integer>::to_i32());
+
+    // La* is less than Lb, so L takes La* value
+    type MyQpa = <(Task1, RemainingTasks, Dmax15404) as Qpa>::Output;
     println!("Qpa: {}", <MyQpa as Bit>::to_bool());
+
+    // t = Dmax15404 = 15400
+    type QpaCondition15400 = <Tasklist<Task1, RemainingTasks> as QpaCondition<Dmax15404>>::Output;
+    println!("QpaCondition<15400>: {}", <QpaCondition15400 as Bit>::to_bool());
 }
