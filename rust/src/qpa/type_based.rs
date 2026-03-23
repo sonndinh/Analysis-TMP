@@ -1,7 +1,7 @@
 use core::ops::{Add, Sub, Div, Mul, BitAnd, Rem};
 use std::marker::PhantomData;
 use typenum::{Bit, False, Integer, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P12, P14, P15, P16, P17, P18, P19, P26, P31, P90, P96, P100, P160, P200, P280, P404, P660, P800, P1000, P1000000000000000000, True, Z0};
-use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsLess, IsEqual, IsLessOrEqual, IsGreater, And};
+use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsLess, IsEqual, IsLessOrEqual, IsGreater, IsGreaterOrEqual, And};
 
 type P2000 = typenum::op!(P1000 * P2);
 type P3000 = typenum::op!(P1000 * P3);
@@ -79,7 +79,8 @@ impl<L> Pdf<L> for Nulltask
 }
 
 type PdfFloorCommonTerm<T, L> = Quot<<L as Sub<<T as Task>::Deadline>>::Output, <T as Task>::Period>;
-type PdfFloorTerm<T, L> = <<<<L as Sub<<T as Task>::Deadline>>::Output as Rem<<T as Task>::Period>>::Output as IsEqual<Z0>>::Output as If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>>::Output;
+type PdfNegativeFloorTerm<T, L> = <<<<L as Sub<<T as Task>::Deadline>>::Output as Rem<<T as Task>::Period>>::Output as IsEqual<Z0>>::Output as If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>>::Output;
+type PdfFloorTerm<T, L> = <<L as IsGreaterOrEqual<<T as Task>::Deadline>>::Output as If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>>::Output;
 type PdfMyValue<T, L> = <<Sum<PdfFloorTerm<T, L>, P1> as Max<Z0>>::Output as Mul<<T as Task>::Wcet>>::Output;
 type PdfOutput<T, U, L> = <PdfMyValue<T, L> as Add<<U as Pdf<L>>::Output>>::Output;
 
@@ -88,11 +89,14 @@ where
     // Bounds for PdfFloorCommonTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
-    // Bounds for PdfFloorTerm
+    // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
     PdfFloorCommonTerm<T, L>: Sub<P1>,
     <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    // Bounds for PdfFloorTerm
+    L: IsGreaterOrEqual<T::Deadline>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
@@ -261,11 +265,14 @@ where
     // Bounds for PdfFloorCommonTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
-    // Bounds for PdfFloorTerm
+    // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
     PdfFloorCommonTerm<T, L>: Sub<P1>,
     <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    // Bounds for PdfFloorTerm
+    L: IsGreaterOrEqual<T::Deadline>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
@@ -303,11 +310,14 @@ where
     // Bounds for PdfFloorCommonTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
-    // Bounds for PdfFloorTerm
+    // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
     PdfFloorCommonTerm<T, L>: Sub<P1>,
     <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    // Bounds for PdfFloorTerm
+    L: IsGreaterOrEqual<T::Deadline>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
@@ -328,11 +338,14 @@ where
     // Bounds for PdfFloorCommonTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
-    // Bounds for PdfFloorTerm
+    // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
     PdfFloorCommonTerm<T, L>: Sub<P1>,
     <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    // Bounds for PdfFloorTerm
+    L: IsGreaterOrEqual<T::Deadline>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
@@ -506,11 +519,19 @@ fn test2() {
     assert_eq!(<Dmax15404 as Integer>::to_i32(), 15400);
     println!("Dmax(15404): {}", <Dmax15404 as Integer>::to_i32());
 
-    // La* is less than Lb, so L takes La* value
-    type MyQpa = <(Task1, RemainingTasks, Dmax15404) as Qpa>::Output;
-    println!("Qpa: {}", <MyQpa as Bit>::to_bool());
+    // Test QPA using La*
+    type QpaUsingLaStar = <(Task1, RemainingTasks, Dmax15404) as Qpa>::Output;
+    println!("Qpa(La*): {}", <QpaUsingLaStar as Bit>::to_bool());
 
+    // Test QPA using Lb -- should get the same result as when using La*
+    type QpaUsingLb = <(Task1, RemainingTasks, Dmax16984) as Qpa>::Output;
+    println!("Qpa(Lb): {}", <QpaUsingLb as Bit>::to_bool());
+
+    // Tracing the QPA iterations
     // t = Dmax15404 = 15400
-    type QpaCondition15400 = <Tasklist<Task1, RemainingTasks> as QpaCondition<Dmax15404>>::Output;
-    println!("QpaCondition<15400>: {}", <QpaCondition15400 as Bit>::to_bool());
+    // type QpaCondition15400 = <Tasklist<Task1, RemainingTasks> as QpaCondition<Dmax15404>>::Output;
+    // println!("QpaCondition<15400>: {}", <QpaCondition15400 as Bit>::to_bool());
+
+    type Pdf15400 = PdfValue<Task1, RemainingTasks, Dmax15404>;
+    println!("Pdf<15400>: {}", <Pdf15400 as Integer>::to_i32());
 }
