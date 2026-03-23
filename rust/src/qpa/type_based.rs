@@ -78,25 +78,25 @@ impl<L> Pdf<L> for Nulltask
     type Output = Z0;
 }
 
-type PdfFloorCommonTerm<T, L> = Quot<<L as Sub<<T as Task>::Deadline>>::Output, <T as Task>::Period>;
-type PdfNegativeFloorTerm<T, L> = <<<<L as Sub<<T as Task>::Deadline>>::Output as Rem<<T as Task>::Period>>::Output as IsEqual<Z0>>::Output as If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>>::Output;
-type PdfFloorTerm<T, L> = <<L as IsGreaterOrEqual<<T as Task>::Deadline>>::Output as If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>>::Output;
+type PdfCommonFloorTerm<T, L> = Quot<<L as Sub<<T as Task>::Deadline>>::Output, <T as Task>::Period>;
+type PdfNegativeFloorTerm<T, L> = <<<<L as Sub<<T as Task>::Deadline>>::Output as Rem<<T as Task>::Period>>::Output as IsEqual<Z0>>::Output as If<PdfCommonFloorTerm<T, L>, <PdfCommonFloorTerm<T, L> as Sub<P1>>::Output>>::Output;
+type PdfFloorTerm<T, L> = <<L as IsGreaterOrEqual<<T as Task>::Deadline>>::Output as If<PdfCommonFloorTerm<T, L>, PdfNegativeFloorTerm<T, L>>>::Output;
 type PdfMyValue<T, L> = <<Sum<PdfFloorTerm<T, L>, P1> as Max<Z0>>::Output as Mul<<T as Task>::Wcet>>::Output;
 type PdfOutput<T, U, L> = <PdfMyValue<T, L> as Add<<U as Pdf<L>>::Output>>::Output;
 
 impl<T: Task, U: Pdf<L>, L> Pdf<L> for Tasklist<T, U>
 where
-    // Bounds for PdfFloorCommonTerm
+    // Bounds for PdfCommonFloorTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
     // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
-    PdfFloorCommonTerm<T, L>: Sub<P1>,
-    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    PdfCommonFloorTerm<T, L>: Sub<P1>,
+    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfCommonFloorTerm<T, L>, <PdfCommonFloorTerm<T, L> as Sub<P1>>::Output>,
     // Bounds for PdfFloorTerm
     L: IsGreaterOrEqual<T::Deadline>,
-    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfCommonFloorTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
@@ -262,17 +262,17 @@ where
     // Thus we can use PdfValue type alias in the Output associated type, i.e.,
     // can cast Tasklist<T, U> as Pdf<L>.
     // TODO: Factor out these bounds for PdfOutput so we don't have to repeat them here or other places where it's used.
-    // Bounds for PdfFloorCommonTerm
+    // Bounds for PdfCommonFloorTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
     // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
-    PdfFloorCommonTerm<T, L>: Sub<P1>,
-    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    PdfCommonFloorTerm<T, L>: Sub<P1>,
+    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfCommonFloorTerm<T, L>, <PdfCommonFloorTerm<T, L> as Sub<P1>>::Output>,
     // Bounds for PdfFloorTerm
     L: IsGreaterOrEqual<T::Deadline>,
-    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfCommonFloorTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
@@ -307,17 +307,17 @@ impl<T: Task, U: Pdf<L>, L> QpaDispatch<T, U, L> for False
 where
     Tasklist<T, U>: Dmin,
     // Bounds for PdfOutput type alias (copied from Pdf impl block for Tasklist)
-    // Bounds for PdfFloorCommonTerm
+    // Bounds for PdfCommonFloorTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
     // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
-    PdfFloorCommonTerm<T, L>: Sub<P1>,
-    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    PdfCommonFloorTerm<T, L>: Sub<P1>,
+    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfCommonFloorTerm<T, L>, <PdfCommonFloorTerm<T, L> as Sub<P1>>::Output>,
     // Bounds for PdfFloorTerm
     L: IsGreaterOrEqual<T::Deadline>,
-    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfCommonFloorTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
@@ -335,17 +335,17 @@ where
 impl<T: Task, U: Pdf<L> + Dmin, L> QpaDispatch<T, U, L> for True
 where
     // Bounds for PdfOutput type alias (copied from Pdf impl block for Tasklist)
-    // Bounds for PdfFloorCommonTerm
+    // Bounds for PdfCommonFloorTerm
     L: Sub<T::Deadline>,
     <L as Sub<T::Deadline>>::Output: Div<T::Period>,
     // Bounds for PdfNegativeFloorTerm
     <L as Sub<T::Deadline>>::Output: Rem<T::Period>,
     <<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output: IsEqual<Z0>,
-    PdfFloorCommonTerm<T, L>: Sub<P1>,
-    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfFloorCommonTerm<T, L>, <PdfFloorCommonTerm<T, L> as Sub<P1>>::Output>,
+    PdfCommonFloorTerm<T, L>: Sub<P1>,
+    <<<L as Sub<T::Deadline>>::Output as Rem<T::Period>>::Output as IsEqual<Z0>>::Output: If<PdfCommonFloorTerm<T, L>, <PdfCommonFloorTerm<T, L> as Sub<P1>>::Output>,
     // Bounds for PdfFloorTerm
     L: IsGreaterOrEqual<T::Deadline>,
-    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfFloorCommonTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
+    <L as IsGreaterOrEqual<T::Deadline>>::Output: If<PdfCommonFloorTerm<T, L>, PdfNegativeFloorTerm<T, L>>,
     // Bounds for the associated types
     PdfFloorTerm<T, L>: Add<P1>,
     Sum<PdfFloorTerm<T, L>, P1>: Max<Z0>,
