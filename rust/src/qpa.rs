@@ -6,7 +6,7 @@ use typenum::{P1, P1000000000000000000, Z0};
 
 type PMax = P1000000000000000000;
 
-trait Task
+pub trait Task
 {
     type Wcet;
     type Deadline;
@@ -21,9 +21,9 @@ impl Task for Nulltask
     type Period = Z0;
 }
 
-struct Tasklist<T, U>(PhantomData<T>, PhantomData<U>);
+pub struct Tasklist<T, U>(PhantomData<T>, PhantomData<U>);
 
-trait TotalWcet
+pub trait TotalWcet
 {
     type Output;
 }
@@ -40,7 +40,7 @@ where
     type Output = Sum<<T as Task>::Wcet, <U as TotalWcet>::Output>;
 }
 
-trait Dmin
+pub trait Dmin
 {
     type Output;
 }
@@ -57,7 +57,7 @@ where
     type Output = <T::Deadline as Min<<U as Dmin>::Output>>::Output;
 }
 
-trait Pdf<L>
+pub trait Pdf<L>
 {
     type Output;
 }
@@ -95,7 +95,7 @@ where
     type Output = PdfOutput<T, U, L>;
 }
 
-trait If<Then, Else>
+pub trait If<Then, Else>
 {
     type Output;
 }
@@ -110,7 +110,7 @@ impl<Then, Else> If<Then, Else> for False
     type Output = Else;
 }
 
-trait Dmax<L>
+pub trait Dmax<L>
 {
     type Output;
 }
@@ -162,7 +162,7 @@ impl LaStar for Nulltask
 }
 
 // Stop when Lb value converges
-trait LbStopCondition<PrevL, L>
+pub trait LbStopCondition<PrevL, L>
 {
     type Output;
 }
@@ -174,7 +174,7 @@ where
     type Output = <PrevL as IsEqual<L>>::Output;
 }
 
-trait LbHelper
+pub trait LbHelper
 {
     type Output;
 }
@@ -203,7 +203,7 @@ impl<L> LbHelper for (Nulltask, L)
     type Output = Z0;
 }
 
-trait LbDispatch<T, U, L>
+pub trait LbDispatch<T, U, L>
 {
     type Output;
 }
@@ -221,7 +221,7 @@ where
     type Output = <(T, U, L, <(Tasklist<T, U>, L) as LbHelper>::Output) as Lb>::Output;
 }
 
-trait Lb
+pub trait Lb
 {
     type Output;
 }
@@ -237,7 +237,7 @@ where
 type DminValue<T, U> = <Tasklist<T, U> as Dmin>::Output;
 type PdfValue<T, U, L> = <Tasklist<T, U> as Pdf<L>>::Output;
 
-trait QpaCondition<L>
+pub trait QpaCondition<L>
 {
     type Output;
 }
@@ -284,7 +284,7 @@ where
     type Output = And<<PdfValue<T, U, L> as IsLessOrEqual<L>>::Output, <PdfValue<T, U, L> as IsGreater<DminValue<T, U>>>::Output>;
 }
 
-trait QpaDispatch<T, U, L>
+pub trait QpaDispatch<T, U, L>
 {
     type Output;
 }
@@ -351,7 +351,7 @@ where
     type Output = <(T, U, UpdatedL<T, U, L>) as Qpa>::Output;
 }
 
-trait Qpa
+pub trait Qpa
 {
     type Output;
 }
