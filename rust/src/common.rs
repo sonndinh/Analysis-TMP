@@ -177,3 +177,54 @@ fn test_max() {
     assert_eq!(<TypeMax<Succ<Zero>, Pred<Zero>> as ToValue>::VALUE, 1);
     assert_eq!(<TypeMax<Pred<Pred<Zero>>, Succ<Succ<Zero>>> as ToValue>::VALUE, 2);
 }
+
+// Rational numbers using typenum integers
+use std::ops::{Add, Sub, Mul, Div};
+use std::marker::PhantomData;
+
+trait RationalNumber
+{
+    type Numerator;
+    type Denominator;
+}
+
+struct Rational<N, D>(PhantomData<N>, PhantomData<D>);
+
+impl<N, D> RationalNumber for Rational<N, D>
+{
+    type Numerator = N;
+    type Denominator = D;
+}
+
+type AddNumerator<N1, D1, N2, D2> = <<N1 as Mul<D2>>::Output as Add<<N2 as Mul<D1>>::Output>>::Output;
+type AddDenominator<D1, D2> = <D1 as Mul<D2>>::Output;
+
+impl<N1, D1, N2, D2> Add<Rational<N2, D2>> for Rational<N1, D1>
+where
+    N1: Mul<D2>,
+    N2: Mul<D1>,
+    <N1 as Mul<D2>>::Output: Add<<N2 as Mul<D1>>::Output>,
+    D1: Mul<D2>
+{
+    // TODO:
+    // - Simplify the result by dividing the numerator and denominator by their greatest common divisor.
+    // - If D1 and D2 are the same, we only need to add the numerators.
+    type Output = Rational<AddNumerator<N1, D1, N2, D2>, AddDenominator<D1, D2>>;
+
+    fn add(self, _other: Rational<N2, D2>) -> Self::Output {
+        Rational(PhantomData, PhantomData)
+    }
+}
+
+use typenum::{P1, P2};
+use typenum::{Integer};
+
+#[test]
+fn test_rational_add() {
+    type R1 = Rational<P1, P2>;
+    type R2 = R1;
+    type R3 = <R1 as Add<R2>>::Output;
+
+    println!("Numerator: {}", <<R3 as RationalNumber>::Numerator as Integer>::to_i32());
+    println!("Denominator: {}", <<R3 as RationalNumber>::Denominator as Integer>::to_i32());
+}

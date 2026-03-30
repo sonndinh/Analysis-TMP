@@ -141,6 +141,7 @@ fn test2() {
 
     type SumWcet = <Taskset as TotalWcet>::Output;
     let total_wcet = <SumWcet as Integer>::to_i32();
+    assert_eq!(total_wcet, 9136);
     println!("Total wcet: {}", total_wcet);
 
     type MyLb = <(Task1, RemainingTasks, Z0, SumWcet) as Lb>::Output;
@@ -148,26 +149,23 @@ fn test2() {
     println!("Lb: {}", <MyLb as Integer>::to_i32());
 
     type Dmax16984 = <Tasklist<Task1, RemainingTasks> as Dmax<MyLb>>::Output;
-    println!("Dmax(16984): {}", <Dmax16984 as Integer>::to_i32());
+    println!("Dmax(Lb): {}", <Dmax16984 as Integer>::to_i32());
 
     // La* is 15404
     type Dmax15404 = <Tasklist<Task1, RemainingTasks> as Dmax<P15404>>::Output;
     assert_eq!(<Dmax15404 as Integer>::to_i32(), 15400);
-    println!("Dmax(15404): {}", <Dmax15404 as Integer>::to_i32());
+    println!("Dmax(La*): {}", <Dmax15404 as Integer>::to_i32());
 
+    // QPA should return the same result for La* and Lb
     // Test QPA using La*
     type QpaUsingLaStar = <(Task1, RemainingTasks, Dmax15404) as Qpa>::Output;
+    assert_eq!(<QpaUsingLaStar as Bit>::to_bool(), false);
     println!("Qpa(La*): {}", <QpaUsingLaStar as Bit>::to_bool());
 
-    // Test QPA using Lb -- should get the same result as when using La*
+    // Test QPA using Lb
     type QpaUsingLb = <(Task1, RemainingTasks, Dmax16984) as Qpa>::Output;
+    assert_eq!(<QpaUsingLb as Bit>::to_bool(), false);
     println!("Qpa(Lb): {}", <QpaUsingLb as Bit>::to_bool());
 
-    // Tracing the QPA iterations
-    // t = Dmax15404 = 15400
-    // type QpaCondition15400 = <Tasklist<Task1, RemainingTasks> as QpaCondition<Dmax15404>>::Output;
-    // println!("QpaCondition<15400>: {}", <QpaCondition15400 as Bit>::to_bool());
-
-    type Pdf15400 = PdfValue<Task1, RemainingTasks, Dmax15404>;
-    println!("Pdf<15400>: {}", <Pdf15400 as Integer>::to_i32());
+    // TODO: mechanism to trace the intermediate values used by QPA which would help debug it.
 }
