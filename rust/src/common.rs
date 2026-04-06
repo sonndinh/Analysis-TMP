@@ -196,8 +196,9 @@ impl<N, D> RationalNumber for Rational<N, D>
     type Denominator = D;
 }
 
+type CommonDenominator<D1, D2> = <D1 as Mul<D2>>::Output;
 type AddNumerator<N1, D1, N2, D2> = <<N1 as Mul<D2>>::Output as Add<<N2 as Mul<D1>>::Output>>::Output;
-type AddDenominator<D1, D2> = <D1 as Mul<D2>>::Output;
+type AddDenominator<D1, D2> = CommonDenominator<D1, D2>;
 
 impl<N1, D1, N2, D2> Add<Rational<N2, D2>> for Rational<N1, D1>
 where
@@ -212,6 +213,53 @@ where
     type Output = Rational<AddNumerator<N1, D1, N2, D2>, AddDenominator<D1, D2>>;
 
     fn add(self, _other: Rational<N2, D2>) -> Self::Output {
+        Rational(PhantomData, PhantomData)
+    }
+}
+
+type SubNumerator<N1, D1, N2, D2> = <<N1 as Mul<D2>>::Output as Sub<<N2 as Mul<D1>>::Output>>::Output;
+type SubDenominator<D1, D2> = CommonDenominator<D1, D2>;
+
+impl<N1, D1, N2, D2> Sub<Rational<N2, D2>> for Rational<N1, D1>
+where
+    N1: Mul<D2>,
+    N2: Mul<D1>,
+    <N1 as Mul<D2>>::Output: Sub<<N2 as Mul<D1>>::Output>,
+    D1: Mul<D2>
+{
+    type Output = Rational<SubNumerator<N1, D1, N2, D2>, SubDenominator<D1, D2>>;
+
+    fn sub(self, _other: Rational<N2, D2>) -> Self::Output {
+        Rational(PhantomData, PhantomData)
+    }
+}
+
+type MulNumerator<N1, N2> = <N1 as Mul<N2>>::Output;
+type MulDenominator<D1, D2> = CommonDenominator<D1, D2>;
+
+impl<N1, D1, N2, D2> Mul<Rational<N2, D2>> for Rational<N1, D1>
+where
+    N1: Mul<N2>,
+    D1: Mul<D2>
+{
+    type Output = Rational<MulNumerator<N1, N2>, MulDenominator<D1, D2>>;
+
+    fn mul(self, _other: Rational<N2, D2>) -> Self::Output {
+        Rational(PhantomData, PhantomData)
+    }
+}
+
+type DivNumerator<N1, D2> = <N1 as Mul<D2>>::Output;
+type DivDenominator<D1, N2> = <D1 as Mul<N2>>::Output;
+
+impl<N1, D1, N2, D2> Div<Rational<N2, D2>> for Rational<N1, D1>
+where
+    N1: Mul<D2>,
+    D1: Mul<N2>
+{
+    type Output = Rational<DivNumerator<N1, D2>, DivDenominator<D1, N2>>;
+
+    fn div(self, _other: Rational<N2, D2>) -> Self::Output {
         Rational(PhantomData, PhantomData)
     }
 }
