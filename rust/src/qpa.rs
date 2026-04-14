@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use typenum::{False, True};
 use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsEqual, IsLess, IsLessOrEqual, IsGreater, IsGreaterOrEqual, And};
 use typenum::{P1, P1000000000000000000, Z0};
+use crate::common::If;
 
 type PMax = P1000000000000000000;
 
@@ -93,21 +94,6 @@ where
     <<Sum<PdfFloorTerm<T, L>, P1> as Max<Z0>>::Output as Mul<T::Wcet>>::Output: Add<<U as Pdf<L>>::Output>
 {
     type Output = PdfOutput<T, U, L>;
-}
-
-pub trait If<Then, Else>
-{
-    type Output;
-}
-
-impl<Then, Else> If<Then, Else> for True
-{
-    type Output = Then;
-}
-
-impl<Then, Else> If<Then, Else> for False
-{
-    type Output = Else;
 }
 
 pub trait Dmax<L>
