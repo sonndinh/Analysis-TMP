@@ -78,6 +78,7 @@ type CommonDenominator<D1, D2> = <D1 as Mul<D2>>::Output;
 type AddNumerator<N1, D1, N2, D2> = <<N1 as Mul<D2>>::Output as Add<<N2 as Mul<D1>>::Output>>::Output;
 type AddDenominator<D1, D2> = CommonDenominator<D1, D2>;
 
+// TODO: Simplify the input N1, D1, N2, D2 before computing the sum, sub, mul, div
 impl<N1, D1, N2, D2> Add<Rational<N2, D2>> for Rational<N1, D1>
 where
     N1: Mul<D2>,
@@ -147,27 +148,69 @@ where
     }
 }
 
-use typenum::{P1, P2, P4};
+use typenum::{P1, P2, P3, P4, P8};
 use typenum::{Integer};
 
 #[test]
 fn test_rational_add() {
-    type R1 = Rational<P1, P2>;
-    type R2 = Rational<P1, P4>;
+    type R1 = Rational<P1, P2>; // 1/2
+    type R2 = Rational<P1, P4>; // 1/4
+    type SumResult = <R1 as Add<R2>>::Output; // 3/4
+    assert_eq!(<<SumResult as RationalNumber>::Numerator as Integer>::to_i32(), 3);
+    assert_eq!(<<SumResult as RationalNumber>::Denominator as Integer>::to_i32(), 4);
 
-    type SumResult = <R1 as Add<R2>>::Output;
-    println!("Numerator: {}", <<SumResult as RationalNumber>::Numerator as Integer>::to_i32());
-    println!("Denominator: {}", <<SumResult as RationalNumber>::Denominator as Integer>::to_i32());
+    type R3 = Rational<P3, P8>; // 3/8
+    type R4 = Rational<P1, P3>; // 1/3
+    type SumResult2 = <R3 as Add<R4>>::Output; // 17/24
+    assert_eq!(<<SumResult2 as RationalNumber>::Numerator as Integer>::to_i32(), 17);
+    assert_eq!(<<SumResult2 as RationalNumber>::Denominator as Integer>::to_i32(), 24);
+}
 
-    type SubResult = <R1 as Sub<R2>>::Output;
-    println!("Numerator: {}", <<SubResult as RationalNumber>::Numerator as Integer>::to_i32());
-    println!("Denominator: {}", <<SubResult as RationalNumber>::Denominator as Integer>::to_i32());
+#[test]
+fn test_rational_sub() {
+    type R1 = Rational<P1, P2>; // 1/2
+    type R2 = Rational<P1, P4>; // 1/4
+    type SubResult = <R1 as Sub<R2>>::Output; // 1/4
+    assert_eq!(<<SubResult as RationalNumber>::Numerator as Integer>::to_i32(), 1);
+    assert_eq!(<<SubResult as RationalNumber>::Denominator as Integer>::to_i32(), 4);
 
-    type MulResult = <R1 as Mul<R2>>::Output;
-    println!("Numerator: {}", <<MulResult as RationalNumber>::Numerator as Integer>::to_i32());
-    println!("Denominator: {}", <<MulResult as RationalNumber>::Denominator as Integer>::to_i32());
+    type R3 = Rational<P3, P8>; // 3/8
+    type R4 = Rational<P1, P3>; // 1/3
+    type SubResult2 = <R3 as Sub<R4>>::Output; // 1/24
+    assert_eq!(<<SubResult2 as RationalNumber>::Numerator as Integer>::to_i32(), 1);
+    assert_eq!(<<SubResult2 as RationalNumber>::Denominator as Integer>::to_i32(), 24);
 
-    type DivResult = <R1 as Div<R2>>::Output;
-    println!("Numerator: {}", <<DivResult as RationalNumber>::Numerator as Integer>::to_i32());
-    println!("Denominator: {}", <<DivResult as RationalNumber>::Denominator as Integer>::to_i32());
+    type SubResult3 = <R2 as Sub<R1>>::Output; // -1/4
+    assert_eq!(<<SubResult3 as RationalNumber>::Numerator as Integer>::to_i32(), -1);
+    assert_eq!(<<SubResult3 as RationalNumber>::Denominator as Integer>::to_i32(), 4);
+}
+
+#[test]
+fn test_rational_mul() {
+    type R1 = Rational<P1, P2>; // 1/2
+    type R2 = Rational<P1, P4>; // 1/4
+    type MulResult = <R1 as Mul<R2>>::Output; // 1/8
+    assert_eq!(<<MulResult as RationalNumber>::Numerator as Integer>::to_i32(), 1);
+    assert_eq!(<<MulResult as RationalNumber>::Denominator as Integer>::to_i32(), 8);
+
+    type R3 = Rational<P3, P8>; // 3/8
+    type R4 = Rational<P1, P3>; // 1/3
+    type MulResult2 = <R3 as Mul<R4>>::Output; // 1/8
+    assert_eq!(<<MulResult2 as RationalNumber>::Numerator as Integer>::to_i32(), 1);
+    assert_eq!(<<MulResult2 as RationalNumber>::Denominator as Integer>::to_i32(), 8);
+}
+
+#[test]
+fn test_rational_div() {
+    type R1 = Rational<P1, P2>; // 1/2
+    type R2 = Rational<P1, P4>; // 1/4
+    type DivResult = <R1 as Div<R2>>::Output; // 2/1
+    assert_eq!(<<DivResult as RationalNumber>::Numerator as Integer>::to_i32(), 2);
+    assert_eq!(<<DivResult as RationalNumber>::Denominator as Integer>::to_i32(), 1);
+
+    type R3 = Rational<P3, P8>; // 3/8
+    type R4 = Rational<P1, P3>; // 1/3
+    type DivResult2 = <R3 as Div<R4>>::Output; // 9/8
+    assert_eq!(<<DivResult2 as RationalNumber>::Numerator as Integer>::to_i32(), 9);
+    assert_eq!(<<DivResult2 as RationalNumber>::Denominator as Integer>::to_i32(), 8);
 }
