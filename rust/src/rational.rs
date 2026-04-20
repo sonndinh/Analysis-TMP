@@ -2,76 +2,48 @@
 use std::ops::{Add, Sub, Mul, Div, Rem};
 use std::marker::PhantomData;
 use typenum::Z0;
-use typenum::{False, True, IsGreaterOrEqual, IsNotEqual};
-
-pub trait If<Then, Else>
-{
-    type Output;
-}
-
-impl<Then, Else> If<Then, Else> for True
-{
-    type Output = Then;
-}
-
-impl<Then, Else> If<Then, Else> for False
-{
-    type Output = Else;
-}
+use typenum::{True, False, IsNotEqual, Maximum, Minimum, Max, Min};
 
 trait GCD
 {
-    type A;
-    type B;
     type Output;
 }
 
 trait GCDBody<A, B>
 {
-    // type NextA;
-    // type NextB;
     type Output;
 }
 
 impl<A, B> GCDBody<A, B> for False
 {
-    // We don't care about next A and B since we are stopping the recursion
-    // type NextA = Z0;
-    // type NextB = Z0;
     type Output = A;
 }
 
-type NextA<B> = B;
-type NextB<A, B> = <A as Rem<B>>::Output;
+// Compute GCD using the Euclidean algorithm.
+type NextGcdA<B> = B;
+type NextGcdB<A, B> = <A as Rem<B>>::Output;
 
+// Input A and B must be such that A >= B
 impl<A, B> GCDBody<A, B> for True
 where
     A: Rem<B>,
-    NextA<B>: IsGreaterOrEqual<NextB<A, B>>,
-    <NextA<B> as IsGreaterOrEqual<NextB<A, B>>>::Output: If<NextA<B>, NextB<A, B>>,
-    <NextA<B> as IsGreaterOrEqual<NextB<A, B>>>::Output: If<NextB<A, B>, NextA<B>>
-    // B: IsGreaterOrEqual<<A as Rem<B>>::Output>,
-    // <B as IsGreaterOrEqual<<A as Rem<B>>::Output>>::Output: If<B, <A as Rem<B>>::Output>
+    (NextGcdA<B>, NextGcdB<A, B>): GCD
 {
-    // type NextA = B;
-    // type NextB = <A as Rem<B>>::Output;
-    // type Output = <(Self::NextA, Self::NextB) as GCD>::Output;
-    type Output = <(NextA<B>, NextB<A, B>) as GCD>::Output;
+    type Output = <(NextGcdA<B>, NextGcdB<A, B>) as GCD>::Output;
 }
 
-// TODO: Compute the GCD of two integers A and B
+type GcdA<X, Y> = Maximum<X, Y>;
+type GcdB<X, Y> = Minimum<X, Y>;
+
+// No constraint on X and Y -- the right input will be passed to GCDBody.
 impl<X, Y> GCD for (X, Y)
 where
-    X: IsGreaterOrEqual<Y>,
-    <X as IsGreaterOrEqual<Y>>::Output: If<X, Y>,
-    <X as IsGreaterOrEqual<Y>>::Output: If<Y, X>,
-    <<X as IsGreaterOrEqual<Y>>::Output as If<Y, X>>::Output: IsNotEqual<Z0>,
-
+    X: Max<Y>,
+    X: Min<Y>,
+    GcdB<X, Y>: IsNotEqual<Z0>,
+    <GcdB<X, Y> as IsNotEqual<Z0>>::Output: GCDBody<GcdA<X, Y>, GcdB<X, Y>>
 {
-    // Set A and B such that A >= B
-    type A = <<X as IsGreaterOrEqual<Y>>::Output as If<X, Y>>::Output;
-    type B = <<X as IsGreaterOrEqual<Y>>::Output as If<Y, X>>::Output;
-    type Output = <<Self::B as IsNotEqual<Z0>>::Output as GCDBody<Self::A, Self::B>>::Output;
+    type Output = <<GcdB<X, Y> as IsNotEqual<Z0>>::Output as GCDBody<GcdA<X, Y>, GcdB<X, Y>>>::Output;
 }
 
 trait RationalNumber

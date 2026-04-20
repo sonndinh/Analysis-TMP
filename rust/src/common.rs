@@ -177,3 +177,20 @@ fn test_max() {
     assert_eq!(<TypeMax<Succ<Zero>, Pred<Zero>> as ToValue>::VALUE, 1);
     assert_eq!(<TypeMax<Pred<Pred<Zero>>, Succ<Succ<Zero>>> as ToValue>::VALUE, 2);
 }
+
+use typenum::{True, False};
+
+pub trait If<Then, Else>
+{
+    type Output;
+}
+
+impl<Then, Else> If<Then, Else> for True
+{
+    type Output = Then;
+}
+
+impl<Then, Else> If<Then, Else> for False
+{
+    type Output = Else;
+}
