@@ -2,13 +2,14 @@
 use std::ops::{Add, Sub, Mul, Div, Rem};
 use std::marker::PhantomData;
 use typenum::Z0;
-use typenum::{True, False, IsNotEqual, Maximum, Minimum, Max, Min};
+use typenum::{True, False, IsNotEqual, Maximum, Minimum, Max, Min, Abs, AbsVal};
 
 trait GCD
 {
     type Output;
 }
 
+// Input A and B must be non-negative and such that A >= B
 trait GCDBody<A, B>
 {
     type Output;
@@ -23,7 +24,6 @@ impl<A, B> GCDBody<A, B> for False
 type NextGcdA<B> = B;
 type NextGcdB<A, B> = <A as Rem<B>>::Output;
 
-// Input A and B must be such that A >= B
 impl<A, B> GCDBody<A, B> for True
 where
     A: Rem<B>,
@@ -32,14 +32,18 @@ where
     type Output = <(NextGcdA<B>, NextGcdB<A, B>) as GCD>::Output;
 }
 
-type GcdA<X, Y> = Maximum<X, Y>;
-type GcdB<X, Y> = Minimum<X, Y>;
+type GcdA<X, Y> = Maximum<AbsVal<X>, AbsVal<Y>>;
+type GcdB<X, Y> = Minimum<AbsVal<X>, AbsVal<Y>>;
 
-// No constraint on X and Y -- the right input will be passed to GCDBody.
+// No constraint on X and Y -- X, Y can be negative and in arbitrary order.
+// First, take absolute value of X and Y.
+// Then pass to GCDBody such that the larger number is first.
 impl<X, Y> GCD for (X, Y)
 where
-    X: Max<Y>,
-    X: Min<Y>,
+    X: Abs,
+    Y: Abs,
+    AbsVal<X>: Max<AbsVal<Y>>,
+    AbsVal<X>: Min<AbsVal<Y>>,
     GcdB<X, Y>: IsNotEqual<Z0>,
     <GcdB<X, Y> as IsNotEqual<Z0>>::Output: GCDBody<GcdA<X, Y>, GcdB<X, Y>>
 {
@@ -148,7 +152,8 @@ where
     }
 }
 
-use typenum::{P1, P2, P3, P4, P8};
+use typenum::{P1, P2, P3, P4, P6, P8};
+use typenum::{N1, N3, N4};
 use typenum::{Integer};
 
 #[test]
@@ -164,6 +169,12 @@ fn test_rational_add() {
     type SumResult2 = <R3 as Add<R4>>::Output; // 17/24
     assert_eq!(<<SumResult2 as RationalNumber>::Numerator as Integer>::to_i32(), 17);
     assert_eq!(<<SumResult2 as RationalNumber>::Denominator as Integer>::to_i32(), 24);
+
+    type R5 = Rational<N1, P3>; // -1/3
+    type R6 = Rational<N4, P6>; // -4/6
+    type SumResult3 = <R5 as Add<R6>>::Output; // -1/1
+    assert_eq!(<<SumResult3 as RationalNumber>::Numerator as Integer>::to_i32(), -1);
+    assert_eq!(<<SumResult3 as RationalNumber>::Denominator as Integer>::to_i32(), 1);
 }
 
 #[test]
@@ -183,6 +194,12 @@ fn test_rational_sub() {
     type SubResult3 = <R2 as Sub<R1>>::Output; // -1/4
     assert_eq!(<<SubResult3 as RationalNumber>::Numerator as Integer>::to_i32(), -1);
     assert_eq!(<<SubResult3 as RationalNumber>::Denominator as Integer>::to_i32(), 4);
+
+    type R5 = Rational<N1, P3>; // -1/3
+    type R6 = Rational<N4, P6>; // -4/6
+    type SubResult4 = <R5 as Sub<R6>>::Output; // 1/3
+    assert_eq!(<<SubResult4 as RationalNumber>::Numerator as Integer>::to_i32(), 1);
+    assert_eq!(<<SubResult4 as RationalNumber>::Denominator as Integer>::to_i32(), 3);
 }
 
 #[test]
@@ -198,6 +215,12 @@ fn test_rational_mul() {
     type MulResult2 = <R3 as Mul<R4>>::Output; // 1/8
     assert_eq!(<<MulResult2 as RationalNumber>::Numerator as Integer>::to_i32(), 1);
     assert_eq!(<<MulResult2 as RationalNumber>::Denominator as Integer>::to_i32(), 8);
+
+    type R5 = Rational<N3, P8>; // -3/8
+    type R6 = Rational<P1, P3>; // 1/3
+    type MulResult3 = <R5 as Mul<R6>>::Output; // -1/8
+    assert_eq!(<<MulResult3 as RationalNumber>::Numerator as Integer>::to_i32(), -1);
+    assert_eq!(<<MulResult3 as RationalNumber>::Denominator as Integer>::to_i32(), 8);
 }
 
 #[test]
@@ -213,4 +236,10 @@ fn test_rational_div() {
     type DivResult2 = <R3 as Div<R4>>::Output; // 9/8
     assert_eq!(<<DivResult2 as RationalNumber>::Numerator as Integer>::to_i32(), 9);
     assert_eq!(<<DivResult2 as RationalNumber>::Denominator as Integer>::to_i32(), 8);
+
+    type R5 = Rational<N3, P8>; // -3/8
+    type R6 = Rational<P1, P3>; // 1/3
+    type DivResult3 = <R5 as Div<R6>>::Output; // -9/8
+    assert_eq!(<<DivResult3 as RationalNumber>::Numerator as Integer>::to_i32(), -9);
+    assert_eq!(<<DivResult3 as RationalNumber>::Denominator as Integer>::to_i32(), 8);
 }
