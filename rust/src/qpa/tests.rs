@@ -14,6 +14,12 @@ type P17000 = typenum::op!(P1000 * P17);
 type P18000 = typenum::op!(P1000 * P18);
 type P31000 = typenum::op!(P1000 * P31);
 
+fn common_work() {
+    for i in 0..1_000_000 {
+        let _ = i * i;
+    }
+}
+
 #[test]
 fn test1() {
     type PdfOf100 = <Taskset as Pdf<P100>>::Output;
@@ -39,6 +45,10 @@ fn test1() {
         type Wcet = P5;
         type Deadline = P10;
         type Period = P15;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task2;
@@ -46,6 +56,10 @@ fn test1() {
         type Wcet = P7;
         type Deadline = P12;
         type Period = P14;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     type Taskset = Tasklist<Task1, Tasklist<Task2, Nulltask>>;
@@ -85,6 +99,11 @@ fn test2() {
         type Wcet = P6000;
         type Deadline = P18000;
         type Period = P31000;
+
+        // User specifies the actual work of the task
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task2;
@@ -92,6 +111,10 @@ fn test2() {
         type Wcet = P2000;
         type Deadline = P9000;
         type Period = P9800;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task3;
@@ -99,6 +122,10 @@ fn test2() {
         type Wcet = P1000;
         type Deadline = P12000;
         type Period = P17000;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task4;
@@ -106,6 +133,10 @@ fn test2() {
         type Wcet = P90;
         type Deadline = P3000;
         type Period = P4200;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task5;
@@ -113,6 +144,10 @@ fn test2() {
         type Wcet = P8;
         type Deadline = P10;
         type Period = P96;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task6;
@@ -120,6 +155,10 @@ fn test2() {
         type Wcet = P2;
         type Deadline = P16;
         type Period = P12;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task7;
@@ -127,6 +166,10 @@ fn test2() {
         type Wcet = P10;
         type Deadline = P19;
         type Period = P280;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     struct Task8;
@@ -134,6 +177,10 @@ fn test2() {
         type Wcet = P26;
         type Deadline = P160;
         type Period = P660;
+
+        fn do_work() {
+            common_work();
+        }
     }
 
     type RemainingTasks = Tasklist<Task2, Tasklist<Task3, Tasklist<Task4, Tasklist<Task5, Tasklist<Task6, Tasklist<Task7, Tasklist<Task8, Nulltask>>>>>>>;
@@ -169,3 +216,8 @@ fn test2() {
 
     // TODO: mechanism to trace the intermediate values used by QPA which would help debug it.
 }
+
+// Need a module that calls the selected scheduling algorithm, e.g., QPA.
+// If the user-provided task set is schedulable, generate a dispatcher that sets up the tasks
+// with the underlying OS, such as launching a thread for each task, registering the threads
+// with the OS scheduler, etc.

@@ -12,6 +12,8 @@ pub trait Task
     type Wcet;
     type Deadline;
     type Period;
+
+    fn do_work();
 }
 
 struct Nulltask;
@@ -20,6 +22,8 @@ impl Task for Nulltask
     type Wcet = Z0;
     type Deadline = Z0;
     type Period = Z0;
+
+    fn do_work() {}
 }
 
 pub struct Tasklist<T, U>(PhantomData<T>, PhantomData<U>);
