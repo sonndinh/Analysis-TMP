@@ -16,7 +16,7 @@ pub trait Task
     fn do_work();
 }
 
-struct Nulltask;
+pub struct Nulltask;
 impl Task for Nulltask
 {
     type Wcet = Z0;

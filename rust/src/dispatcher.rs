@@ -1,30 +1,55 @@
 use std::marker::PhantomData;
 
-use crate::qpa::Tasklist;
+use crate::qpa::{Task, Tasklist, Nulltask};
 
 // Each scheduling policy, such as RM or EDF, implements this trait to generate
 // a dispatcher for the given task set under the given scheduling policy.
-trait DispatcherGenerator
+trait DispatcherGenerator<Policy>
 {
-    fn generate_dispatcher<Tasklist>();
+    fn generate_dispatcher();
 }
 
-struct EDF;
-
-impl EDF
+trait EDFTask
 {
-    fn create_edf_task<T>()
+    fn setup_task()
     {
-        // TODO: set up task T
+        // TODO: set up a thread for the task.
     }
 }
 
-impl DispatcherGenerator for EDF
+trait EDFTasklist
 {
-    fn generate_dispatcher<Tasklist>()
+    fn setup();
+}
+
+impl EDFTasklist for Nulltask
+{
+    fn setup() {}
+}
+
+
+impl<T: Task + EDFTask, U: EDFTasklist> EDFTasklist for Tasklist<T, U>
+{
+    fn setup()
     {
-        // TODO: generate a thread for each task and register them with the OS scheduler.
-        EDF::create_edf_task::<Tasklist::T>();
+        // Set up the head task, and
+        <T as EDFTask>::setup_task();
+
+        // Recursively launch the rest
+        U::setup();
+    }
+}
+
+// Tags for different scheduling policies, so a dispatcher can be generated for a given task set
+// under each scheduling policy.
+struct EDF;
+
+impl<T: Task + EDFTask, U: EDFTasklist> DispatcherGenerator<EDF> for Tasklist<T, U>
+{
+    fn generate_dispatcher()
+    {
+        // Create a thread for each task and register them with the OS scheduler.
+        <Tasklist<T, U> as EDFTasklist>::setup();
 
         // Start the tasks
         // schedule()
@@ -36,12 +61,12 @@ trait Feasibility
     type Result;
 }
 
-// Template on the task set, the scheduling policy, and the schedulability analysis for
+// Generic on the task set, the scheduling policy, and the schedulability analysis for
 // the specified task set under the specified scheduling policy.
-struct Dispatcher<Tasklist, Policy, Analysis>(PhantomData<Tasklist>, PhantomData<Policy>, PhantomData<Analysis>);
+struct Dispatcher<Taskset, Policy, Analysis>(PhantomData<Taskset>, PhantomData<Policy>, PhantomData<Analysis>);
 
 // Caller is expected to, first, check the schedulability result using the specified analysis algorithm.
-impl<Tasklist, Policy, Analysis> Feasibility for Dispatcher<Tasklist, Policy, Analysis>
+impl<Taskset, Policy, Analysis> Feasibility for Dispatcher<Taskset, Policy, Analysis>
 {
     // TODO: Delegate to the given feasibility test
     type Result = bool;
@@ -51,13 +76,14 @@ impl<Tasklist, Policy, Analysis> Feasibility for Dispatcher<Tasklist, Policy, An
 // Example with EDF policy, QPA analysis, ExampleTaskset:
 // Dispatcher::<ExampleTaskset, EDF, QPA>::Result has the feasibility result of the task set.
 // Dispatcher::<ExampleTaskset, EDF, QPA>::dispatch() generates the dispatcher and dispatches the tasks.
-impl<Tasklist, Policy, Analysis> Dispatcher<Tasklist, Policy, Analysis>
-where
-    Policy: DispatcherGenerator
+impl<Taskset: DispatcherGenerator<Policy>, Policy, Analysis> Dispatcher<Taskset, Policy, Analysis>
+// where
+    // Policy: DispatcherGenerator
 {
     fn dispatch()
     {
         // TODO: generate dispatcher for the given task set under the given scheduling policy.
-        <Policy as DispatcherGenerator>::generate_dispatcher::<Tasklist>();
+        // <Policy as DispatcherGenerator>::generate_dispatcher::<Tasklist>();
+        <Taskset as DispatcherGenerator<Policy>>::generate_dispatcher();
     }
 }
