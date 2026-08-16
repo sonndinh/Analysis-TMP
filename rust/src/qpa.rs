@@ -310,6 +310,9 @@ where
     type Output = <<PdfOutput<T, U, L> as IsLessOrEqual<DminValue<T, U>>>::Output as If<True, False>>::Output;
 }
 
+// New L value computed within the iteration of the QPA's while loop
+type UpdatedL<T, U, L> = <<PdfOutput<T, U, L> as IsLess<L>>::Output as If<PdfOutput<T, U, L>, <Tasklist<T, U> as Dmax<L>>::Output>>::Output;
+
 // Recursive case
 impl<T: Task, U: Pdf<L> + Dmin, L> QpaDispatch<T, U, L> for True
 where
@@ -346,15 +349,32 @@ pub trait Qpa
     type Output;
 }
 
-// New L value computed within the iteration of the QPA's while loop
-type UpdatedL<T, U, L> = <<PdfOutput<T, U, L> as IsLess<L>>::Output as If<PdfOutput<T, U, L>, <Tasklist<T, U> as Dmax<L>>::Output>>::Output;
-
 impl<T, U, L> Qpa for (T, U, L)
 where
     Tasklist<T, U>: QpaCondition<L>,
     <Tasklist<T, U> as QpaCondition<L>>::Output: QpaDispatch<T, U, L>,
 {
     type Output = <<Tasklist<T, U> as QpaCondition<L>>::Output as QpaDispatch<T, U, L>>::Output;
+}
+
+pub trait QPA
+{
+    type Output;
+}
+
+type TotalWcetValue<T, U> = <Tasklist<T, U> as TotalWcet>::Output;
+type LbValue<T, U> = <(T, U, Z0, TotalWcetValue<T, U>) as Lb>::Output;
+
+impl<T, U> QPA for (T, U)
+where
+    // For TotalWcetValue type alias
+    Tasklist<T, U>: TotalWcet,
+    // For LbValue type alias
+    (T, U, Z0, TotalWcetValue<T, U>): Lb,
+    // Must satisfy Qpa trait
+    (T, U, LbValue<T, U>): Qpa
+{
+    type Output = <(T, U, LbValue<T, U>) as Qpa>::Output;
 }
 
 #[cfg(test)]

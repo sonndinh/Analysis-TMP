@@ -214,6 +214,11 @@ fn test2() {
     assert_eq!(<QpaUsingLb as Bit>::to_bool(), false);
     println!("Qpa(Lb): {}", <QpaUsingLb as Bit>::to_bool());
 
+    // Same result but use the QPA wrapper
+    type QpaResult = <(Task1, RemainingTasks) as QPA>::Output;
+    assert_eq!(<QpaResult as Bit>::to_bool(), false);
+    println!("QPA result: {}", <QpaResult as Bit>::to_bool());
+
     // TODO: mechanism to trace the intermediate values used by QPA which would help debug it.
 }
 
