@@ -34,11 +34,11 @@ fn test1() {
     type QpaConditionOf200 = <Taskset as QpaCondition<P200>>::Output;
     println!("QpaCondition(200): {}", <QpaConditionOf200 as Bit>::to_bool());
 
-    type QpaOf100 = <(Task1, Tasklist<Task2, Nulltask>, P100) as Qpa>::Output;
-    println!("Qpa(100): {}", <QpaOf100 as Bit>::to_bool());
+    type QpaOf100 = <(Task1, Tasklist<Task2, Nulltask>, P100) as QpaInternal>::Output;
+    println!("QpaInternal(100): {}", <QpaOf100 as Bit>::to_bool());
 
-    type QpaOf12 = <(Task1, Tasklist<Task2, Nulltask>, P12) as Qpa>::Output;
-    println!("Qpa(12): {}", <QpaOf12 as Bit>::to_bool());
+    type QpaOf12 = <(Task1, Tasklist<Task2, Nulltask>, P12) as QpaInternal>::Output;
+    println!("QpaInternal(12): {}", <QpaOf12 as Bit>::to_bool());
 
     struct Task1;
     impl Task for Task1 {
@@ -87,9 +87,9 @@ fn test1() {
     assert_eq!(<PdfOf10 as Integer>::to_i32(), 5);
     println!("h(t=10): {}", <PdfOf10 as Integer>::to_i32());
 
-    type MyQpa = <(Task1, Tasklist<Task2, Nulltask>, MyLb) as Qpa>::Output;
+    type MyQpa = <(Task1, Tasklist<Task2, Nulltask>, MyLb) as QpaInternal>::Output;
     assert!(<MyQpa as Bit>::to_bool());
-    println!("Qpa: {}", <MyQpa as Bit>::to_bool());
+    println!("QpaInternal: {}", <MyQpa as Bit>::to_bool());
 }
 
 #[test]
@@ -205,14 +205,14 @@ fn test2() {
 
     // QPA should return the same result for La* and Lb
     // Test QPA using La*
-    type QpaUsingLaStar = <(Task1, RemainingTasks, Dmax15404) as Qpa>::Output;
+    type QpaUsingLaStar = <(Task1, RemainingTasks, Dmax15404) as QpaInternal>::Output;
     assert_eq!(<QpaUsingLaStar as Bit>::to_bool(), false);
-    println!("Qpa(La*): {}", <QpaUsingLaStar as Bit>::to_bool());
+    println!("QpaInternal(La*): {}", <QpaUsingLaStar as Bit>::to_bool());
 
     // Test QPA using Lb
-    type QpaUsingLb = <(Task1, RemainingTasks, Dmax16984) as Qpa>::Output;
+    type QpaUsingLb = <(Task1, RemainingTasks, Dmax16984) as QpaInternal>::Output;
     assert_eq!(<QpaUsingLb as Bit>::to_bool(), false);
-    println!("Qpa(Lb): {}", <QpaUsingLb as Bit>::to_bool());
+    println!("QpaInternal(Lb): {}", <QpaUsingLb as Bit>::to_bool());
 
     // Same result but use the QPA wrapper
     type QpaResult = <(Task1, RemainingTasks) as QPA>::Output;

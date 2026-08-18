@@ -1,7 +1,7 @@
 use core::ops::{Add, Sub, Div, Mul, BitAnd, Rem};
 use std::marker::PhantomData;
 use typenum::{False, True};
-use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsEqual, IsLess, IsLessOrEqual, IsGreater, IsGreaterOrEqual, And};
+use typenum::{Sum, Diff, Prod, Quot, Mod, Min, Max, Maximum, IsEqual, IsLess, IsLessOrEqual, IsGreater, IsGreaterOrEqual, And, Integer};
 use typenum::{P1, P1000000000000000000, Z0};
 use crate::common::If;
 
@@ -9,9 +9,9 @@ type PMax = P1000000000000000000;
 
 pub trait Task
 {
-    type Wcet;
-    type Deadline;
-    type Period;
+    type Wcet: Integer;
+    type Deadline: Integer;
+    type Period: Integer;
 
     fn do_work();
 }
@@ -339,17 +339,17 @@ where
     Tasklist<T, U>: Dmax<L>,
     <PdfOutput<T, U, L> as IsLess<L>>::Output: If<PdfOutput<T, U, L>, <Tasklist<T, U> as Dmax<L>>::Output>,
     // Recursive call
-    (T, U, UpdatedL<T, U, L>): Qpa,
+    (T, U, UpdatedL<T, U, L>): QpaInternal,
 {
-    type Output = <(T, U, UpdatedL<T, U, L>) as Qpa>::Output;
+    type Output = <(T, U, UpdatedL<T, U, L>) as QpaInternal>::Output;
 }
 
-pub trait Qpa
+pub trait QpaInternal
 {
     type Output;
 }
 
-impl<T, U, L> Qpa for (T, U, L)
+impl<T, U, L> QpaInternal for (T, U, L)
 where
     Tasklist<T, U>: QpaCondition<L>,
     <Tasklist<T, U> as QpaCondition<L>>::Output: QpaDispatch<T, U, L>,
@@ -371,10 +371,10 @@ where
     Tasklist<T, U>: TotalWcet,
     // For LbValue type alias
     (T, U, Z0, TotalWcetValue<T, U>): Lb,
-    // Must satisfy Qpa trait
-    (T, U, LbValue<T, U>): Qpa
+    // Must satisfy QpaInternal trait
+    (T, U, LbValue<T, U>): QpaInternal
 {
-    type Output = <(T, U, LbValue<T, U>) as Qpa>::Output;
+    type Output = <(T, U, LbValue<T, U>) as QpaInternal>::Output;
 }
 
 #[cfg(test)]
