@@ -2,6 +2,8 @@ use super::*;
 use typenum::{Bit, Integer};
 use typenum::{P2, P3, P4, P5, P6, P7, P8, P9, P10, P12, P14, P15, P16, P17, P18, P19, P26, P31, P90, P96, P100, P160, P200, P280, P404, P660, P800, P1000, Z0};
 
+use crate::dispatcher::{Dispatcher, EDF, EDFTask, QPATest};
+
 type P2000 = typenum::op!(P1000 * P2);
 type P3000 = typenum::op!(P1000 * P3);
 type P4200 = typenum::op!(P1000 * P4 + P200);
@@ -50,6 +52,7 @@ fn test1() {
             common_work();
         }
     }
+    impl EDFTask for Task1 {}
 
     struct Task2;
     impl Task for Task2 {
@@ -61,6 +64,7 @@ fn test1() {
             common_work();
         }
     }
+    impl EDFTask for Task2 {}
 
     type Taskset = Tasklist<Task1, Tasklist<Task2, Nulltask>>;
 
@@ -105,6 +109,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task1 {}
 
     struct Task2;
     impl Task for Task2 {
@@ -116,6 +121,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task2 {}
 
     struct Task3;
     impl Task for Task3 {
@@ -127,6 +133,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task3 {}
 
     struct Task4;
     impl Task for Task4 {
@@ -138,6 +145,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task4 {}
 
     struct Task5;
     impl Task for Task5 {
@@ -149,6 +157,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task5 {}
 
     struct Task6;
     impl Task for Task6 {
@@ -160,6 +169,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task6 {}
 
     struct Task7;
     impl Task for Task7 {
@@ -171,6 +181,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task7 {}
 
     struct Task8;
     impl Task for Task8 {
@@ -182,6 +193,7 @@ fn test2() {
             common_work();
         }
     }
+    impl EDFTask for Task8 {}
 
     type RemainingTasks = Tasklist<Task2, Tasklist<Task3, Tasklist<Task4, Tasklist<Task5, Tasklist<Task6, Tasklist<Task7, Tasklist<Task8, Nulltask>>>>>>>;
     type Taskset = Tasklist<Task1, RemainingTasks>;
@@ -218,6 +230,10 @@ fn test2() {
     type QpaResult = <(Task1, RemainingTasks) as QPA>::Output;
     assert_eq!(<QpaResult as Bit>::to_bool(), false);
     println!("QPA result: {}", <QpaResult as Bit>::to_bool());
+
+    // Dispatch the tasks in the set even though they are not schedulable.
+    // This is just for testing purposes.
+    Dispatcher::<Taskset, EDF, QPATest>::dispatch();
 
     // TODO: mechanism to trace the intermediate values used by QPA which would help debug it.
 }

@@ -2,7 +2,6 @@ use crate::qpa::{QPA, Task, Tasklist, Nulltask};
 use typenum::Integer;
 use std::marker::PhantomData;
 
-
 struct TaskParams
 {
     wcet: u32,
@@ -10,7 +9,7 @@ struct TaskParams
     period: u32,
 }
 
-trait EDFTask: Task
+pub trait EDFTask: Task
 {
     fn setup_task(params: TaskParams)
     {
@@ -29,8 +28,6 @@ trait EDFTask: Task
                     sched_period: params.period as u64 * 1_000_000,
                 };
 
-                // Linux doesn't wrap sched_setattr(2) in libc, so issue it directly.
-                // A pid of 0 targets the calling thread, i.e. this one.
                 let ret = unsafe {
                     libc::syscall(libc::SYS_sched_setattr, 0, &attr as *const libc::sched_attr, 0u32)
                 };
@@ -91,7 +88,7 @@ trait DispatcherGenerator<Policy>
 
 // Tags for different scheduling policies, so a dispatcher can be generated for a given task set
 // under each scheduling policy.
-struct EDF;
+pub struct EDF;
 
 impl<T: Task + EDFTask, U: EDFTasklist> DispatcherGenerator<EDF> for Tasklist<T, U>
 {
@@ -112,7 +109,7 @@ trait Feasibility<Analysis>
 
 // Tags to differentiate different schedulability analysis algorithms.
 // Based on the tag, an implementation of the specifed algorithm is used.
-struct QPATest;
+pub struct QPATest;
 
 // Caller is expected to, first, check the schedulability result using the specified analysis algorithm.
 impl<T, U> Feasibility<QPATest> for Tasklist<T, U>
@@ -124,7 +121,7 @@ where
 
 // Generic on the task set, the scheduling policy, and the schedulability analysis for
 // the specified task set under the specified scheduling policy.
-struct Dispatcher<Taskset, Policy, Analysis>(PhantomData<Taskset>, PhantomData<Policy>, PhantomData<Analysis>);
+pub struct Dispatcher<Taskset, Policy, Analysis>(PhantomData<Taskset>, PhantomData<Policy>, PhantomData<Analysis>);
 
 // Then, generate the dispatcher for the given task set under the given scheduling policy.
 // Example with EDF policy, QPA analysis, ExampleTaskset:
@@ -132,7 +129,7 @@ struct Dispatcher<Taskset, Policy, Analysis>(PhantomData<Taskset>, PhantomData<P
 // Dispatcher::<ExampleTaskset, EDF, QPA>::dispatch() generates the dispatcher and dispatches the tasks.
 impl<Taskset: DispatcherGenerator<Policy>, Policy, Analysis> Dispatcher<Taskset, Policy, Analysis>
 {
-    fn dispatch()
+    pub fn dispatch()
     {
         <Taskset as DispatcherGenerator<Policy>>::generate_dispatcher();
     }
