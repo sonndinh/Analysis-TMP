@@ -1,6 +1,6 @@
 use crate::qpa::{QPA, Task, Tasklist, Nulltask};
 use typenum::Integer;
-use std::marker::PhantomData;
+use std::{marker::PhantomData, thread::JoinHandle};
 
 struct TaskParams
 {
@@ -11,11 +11,12 @@ struct TaskParams
 
 pub trait EDFTask: Task
 {
-    fn setup_task(params: TaskParams)
+    fn setup_task(params: TaskParams) -> JoinHandle<()>
     {
         #[cfg(target_os = "linux")]
         {
-            std::thread::spawn(move || {
+            return std::thread::spawn(move || {
+                println!("Task thread started with params: wcet={}, deadline={}, period={}", params.wcet, params.deadline, params.period);
                 // sched_attr's runtime/deadline/period are in nanoseconds; TaskParams is in milliseconds.
                 let attr = libc::sched_attr {
                     size: std::mem::size_of::<libc::sched_attr>() as u32,
@@ -52,18 +53,20 @@ pub trait EDFTask: Task
 
 trait EDFTasklist
 {
-    fn setup();
+    fn setup() -> Vec<JoinHandle<()>>;
 }
 
 impl EDFTasklist for Nulltask
 {
-    fn setup() {}
+    fn setup() -> Vec<JoinHandle<()>> {
+        vec![]
+    }
 }
 
 
 impl<T: Task + EDFTask, U: EDFTasklist> EDFTasklist for Tasklist<T, U>
 {
-    fn setup()
+    fn setup() -> Vec<JoinHandle<()>>
     {
         let params = TaskParams {
             wcet: <<T as Task>::Wcet as Integer>::to_i32() as u32,
@@ -72,10 +75,12 @@ impl<T: Task + EDFTask, U: EDFTasklist> EDFTasklist for Tasklist<T, U>
         };
 
         // Set up the head task, and
-        <T as EDFTask>::setup_task(params);
+        let handle =<T as EDFTask>::setup_task(params);
 
         // Recursively launch the rest
-        U::setup();
+        let mut remaining_handles = U::setup();
+        remaining_handles.push(handle);
+        remaining_handles
     }
 }
 
@@ -95,10 +100,18 @@ impl<T: Task + EDFTask, U: EDFTasklist> DispatcherGenerator<EDF> for Tasklist<T,
     fn generate_dispatcher()
     {
         // Create a thread for each task and register them with the OS scheduler.
-        <Tasklist<T, U> as EDFTasklist>::setup();
+        let handles = <Tasklist<T, U> as EDFTasklist>::setup();
 
         // TODO: Start the tasks
         // schedule()
+
+        for handle in &handles {
+            handle.thread().unpark();
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
     }
 }
 
@@ -131,6 +144,7 @@ impl<Taskset: DispatcherGenerator<Policy>, Policy, Analysis> Dispatcher<Taskset,
 {
     pub fn dispatch()
     {
+        println!("Dispatcher::dispatch()...");
         <Taskset as DispatcherGenerator<Policy>>::generate_dispatcher();
     }
 }
