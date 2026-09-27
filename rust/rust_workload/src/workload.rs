@@ -1,0 +1,308 @@
+use crate::config::Cli;
+use crate::extrapolator::{ImuSample, PoseExtrapolator};
+use crate::filters::{
+    adaptive_voxel_filter, voxel_filter, AdaptiveVoxelFilterOptions, MotionFilter,
+    MotionFilterOptions,
+};
+use crate::grid::ActiveSubmaps;
+use crate::scan_matching::{correlative_match, refine_pose, CorrelativeOptions, RefinementOptions};
+use crate::sensor::{generate_imu_sample, generate_scan, Trajectory, World};
+use nalgebra::{Isometry2, Point2};
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use std::time::{Duration, Instant};
+
+pub struct ReleaseRecord {
+    pub release_index: usize,
+    pub sensor_time: f64,
+    pub period: f64,
+    pub wall_exec_secs: f64,
+    pub cpu_exec_secs: f64,
+    pub stage_filter_secs: f64,
+    pub stage_correlative_secs: f64,
+    pub stage_refine_secs: f64,
+    pub stage_insert_secs: f64,
+    pub submap_inserted: bool,
+    pub grid_grew: bool,
+    pub deadline_secs: f64,
+    pub deadline_met: bool,
+}
+
+pub struct Summary {
+    pub num_releases: usize,
+    pub mean_wall_secs: f64,
+    pub p95_wall_secs: f64,
+    pub max_wall_secs: f64,
+    pub mean_cpu_secs: f64,
+    pub p95_cpu_secs: f64,
+    pub max_cpu_secs: f64,
+    pub mean_period_secs: f64,
+    pub deadline_miss_count: usize,
+    pub grid_growth_events: usize,
+    pub submap_insertions: usize,
+    /// Grid-growth events across the *entire* run, warm-up included -- growth
+    /// is a first-touch reallocation cost and tends to cluster right at the
+    /// start (the robot begins outside the grid's initial bounds), which is
+    /// exactly the kind of cold-start effect warm-up exclusion exists for.
+    pub lifetime_grid_growth_events: usize,
+}
+
+#[cfg(unix)]
+fn cpu_time_now() -> f64 {
+    unsafe {
+        let mut ts: libc::timespec = std::mem::zeroed();
+        libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts);
+        ts.tv_sec as f64 + ts.tv_nsec as f64 * 1e-9
+    }
+}
+
+#[cfg(not(unix))]
+fn cpu_time_now() -> f64 {
+    0.0
+}
+
+/// Runs the release loop over `cli.duration_secs` of simulated sensor time,
+/// mirroring the loop body of `AddRangeData`/`AddAccumulatedRangeData`
+/// ([local_trajectory_builder_2d.cc:104-277]): accumulate synthetic scans,
+/// then on each release run gravity-alignment/filtering, scan matching, and
+/// (conditionally, per `MotionFilter`) submap insertion, timing every stage.
+pub fn run(cli: &Cli) -> (Vec<ReleaseRecord>, Summary) {
+    let mut rng = StdRng::seed_from_u64(cli.seed);
+    let world = World::square_room(5.0);
+    let trajectory = Trajectory {
+        circle_radius: 3.0,
+        angular_speed: 0.05,
+    };
+
+    let mut extrapolator = PoseExtrapolator::new(cli.pose_queue_duration);
+    extrapolator.add_pose(0.0, Isometry2::identity());
+
+    let mut motion_filter = MotionFilter::new(MotionFilterOptions {
+        max_time_seconds: cli.motion_filter_max_time_seconds,
+        max_distance_meters: cli.motion_filter_max_distance_meters,
+        max_angle_radians: cli.motion_filter_max_angle_radians,
+    });
+
+    let mut active_submaps = ActiveSubmaps::new(cli.submap_num_range_data, cli.grid_resolution);
+
+    let scan_period = 1.0 / cli.scan_rate_hz;
+    let imu_period = 1.0 / cli.imu_rate_hz;
+    let num_imu_per_scan = ((scan_period / imu_period).round() as usize).max(1);
+
+    let mut accumulated: Vec<Point2<f64>> = Vec::new();
+    let mut accumulated_scans = 0usize;
+    let mut records = Vec::new();
+    let mut last_release_time: Option<f64> = None;
+    let mut release_index = 0usize;
+
+    let num_scans = (cli.duration_secs / scan_period).floor() as usize;
+    let mut t = 0.0_f64;
+
+    for _ in 0..num_scans {
+        for k in 0..num_imu_per_scan {
+            let imu_t = t + (k as f64) * imu_period;
+            let true_omega = trajectory.angular_velocity_z();
+            let noisy_omega = generate_imu_sample(true_omega, &mut rng, 0.01);
+            extrapolator.add_imu(ImuSample {
+                time: imu_t,
+                angular_velocity_z: noisy_omega,
+            });
+        }
+
+        let true_pose = trajectory.pose_at(t);
+        let scan_points_local = generate_scan(
+            &world,
+            true_pose,
+            cli.points_per_scan,
+            cli.min_range,
+            cli.max_range,
+            &mut rng,
+            0.01,
+        );
+
+        // Simplification: all points in a scan share timestamp `t` rather than
+        // each point's own within-sweep timestamp (see plan's assumptions).
+        let predicted_pose_now = extrapolator.extrapolate_pose(t);
+        for p in &scan_points_local {
+            accumulated.push(predicted_pose_now * p);
+        }
+        accumulated_scans += 1;
+
+        if accumulated_scans == cli.num_accumulated_range_data {
+            let wall_start = Instant::now();
+            let cpu_start = cpu_time_now();
+
+            let last_pose = extrapolator.last_pose();
+            let filter_start = Instant::now();
+            let local_points: Vec<Point2<f64>> = accumulated
+                .iter()
+                .map(|p| last_pose.inverse() * p)
+                .collect();
+            // Mirrors the original's two-stage filtering: a plain voxel filter
+            // over the gravity-aligned accumulated points ([voxel_filter_size],
+            // `TransformToGravityAlignedFrameAndFilter`), then the adaptive
+            // voxel filter that produces the scan-matcher's input point cloud.
+            let coarsely_filtered = voxel_filter(&local_points, cli.voxel_filter_size, &mut rng);
+            let adaptive_options = AdaptiveVoxelFilterOptions {
+                max_length: cli.adaptive_voxel_max_length,
+                min_num_points: cli.adaptive_voxel_min_num_points,
+                max_range: cli.adaptive_voxel_max_range,
+            };
+            let filtered_local =
+                adaptive_voxel_filter(&coarsely_filtered, &adaptive_options, &mut rng);
+            let stage_filter = filter_start.elapsed();
+
+            let pose_prediction = extrapolator.extrapolate_pose(t);
+            let mut matching_pose = pose_prediction;
+            let mut stage_corr = Duration::ZERO;
+            if cli.enable_correlative_matching {
+                let corr_start = Instant::now();
+                let corr_options = CorrelativeOptions {
+                    linear_search_window: cli.correlative_linear_search_window,
+                    angular_search_window: cli.correlative_angular_search_window,
+                    translation_delta_cost_weight: cli.correlative_translation_delta_cost_weight,
+                    rotation_delta_cost_weight: cli.correlative_rotation_delta_cost_weight,
+                    resolution: cli.grid_resolution,
+                };
+                let (p, _score) = correlative_match(
+                    pose_prediction,
+                    &filtered_local,
+                    active_submaps.matching_grid(),
+                    &corr_options,
+                );
+                matching_pose = p;
+                stage_corr = corr_start.elapsed();
+            }
+
+            let refine_start = Instant::now();
+            let refine_options = RefinementOptions {
+                occupied_space_weight: cli.ceres_occupied_space_weight,
+                translation_weight: cli.ceres_translation_weight,
+                rotation_weight: cli.ceres_rotation_weight,
+                max_num_iterations: cli.ceres_max_num_iterations,
+            };
+            let refined_pose = refine_pose(
+                matching_pose,
+                pose_prediction,
+                &filtered_local,
+                active_submaps.matching_grid(),
+                &refine_options,
+            );
+            let stage_refine = refine_start.elapsed();
+
+            extrapolator.add_pose(t, refined_pose);
+
+            let mut inserted = false;
+            let mut grew = false;
+            let mut stage_insert = Duration::ZERO;
+            if !motion_filter.is_similar(t, refined_pose) {
+                let insert_start = Instant::now();
+                let hits_map: Vec<Point2<f64>> = filtered_local
+                    .iter()
+                    .map(|p| refined_pose * p)
+                    .collect();
+                let origin_map = Point2::from(refined_pose.translation.vector);
+                grew = active_submaps.insert(origin_map, &hits_map);
+                inserted = true;
+                stage_insert = insert_start.elapsed();
+            }
+
+            let wall_elapsed = wall_start.elapsed().as_secs_f64();
+            let cpu_elapsed = cpu_time_now() - cpu_start;
+
+            let period = last_release_time
+                .map(|lt| t - lt)
+                .unwrap_or(scan_period * cli.num_accumulated_range_data as f64);
+            last_release_time = Some(t);
+            let deadline = period * cli.deadline_scale;
+
+            records.push(ReleaseRecord {
+                release_index,
+                sensor_time: t,
+                period,
+                wall_exec_secs: wall_elapsed,
+                cpu_exec_secs: cpu_elapsed,
+                stage_filter_secs: stage_filter.as_secs_f64(),
+                stage_correlative_secs: stage_corr.as_secs_f64(),
+                stage_refine_secs: stage_refine.as_secs_f64(),
+                stage_insert_secs: stage_insert.as_secs_f64(),
+                submap_inserted: inserted,
+                grid_grew: grew,
+                deadline_secs: deadline,
+                deadline_met: wall_elapsed <= deadline,
+            });
+            release_index += 1;
+            accumulated.clear();
+            accumulated_scans = 0;
+
+            if cli.real_time {
+                std::thread::sleep(Duration::from_secs_f64(period.max(0.0)));
+            }
+        }
+
+        t += scan_period;
+    }
+
+    let summary = compute_summary(&records, cli.warmup_releases);
+    (records, summary)
+}
+
+fn percentile(sorted: &[f64], p: f64) -> f64 {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let idx = ((sorted.len() as f64 - 1.0) * p).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
+}
+
+fn compute_summary(records: &[ReleaseRecord], warmup: usize) -> Summary {
+    let data: Vec<&ReleaseRecord> = records.iter().skip(warmup).collect();
+    let mut wall: Vec<f64> = data.iter().map(|r| r.wall_exec_secs).collect();
+    let mut cpu: Vec<f64> = data.iter().map(|r| r.cpu_exec_secs).collect();
+    wall.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    cpu.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let n = (data.len().max(1)) as f64;
+    Summary {
+        num_releases: data.len(),
+        mean_wall_secs: data.iter().map(|r| r.wall_exec_secs).sum::<f64>() / n,
+        p95_wall_secs: percentile(&wall, 0.95),
+        max_wall_secs: wall.last().copied().unwrap_or(0.0),
+        mean_cpu_secs: data.iter().map(|r| r.cpu_exec_secs).sum::<f64>() / n,
+        p95_cpu_secs: percentile(&cpu, 0.95),
+        max_cpu_secs: cpu.last().copied().unwrap_or(0.0),
+        mean_period_secs: data.iter().map(|r| r.period).sum::<f64>() / n,
+        deadline_miss_count: data.iter().filter(|r| !r.deadline_met).count(),
+        grid_growth_events: data.iter().filter(|r| r.grid_grew).count(),
+        submap_insertions: data.iter().filter(|r| r.submap_inserted).count(),
+        lifetime_grid_growth_events: records.iter().filter(|r| r.grid_grew).count(),
+    }
+}
+
+pub fn write_csv(path: &str, records: &[ReleaseRecord]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut f = std::fs::File::create(path)?;
+    writeln!(
+        f,
+        "release_index,sensor_time,period,wall_exec_secs,cpu_exec_secs,stage_filter_secs,stage_correlative_secs,stage_refine_secs,stage_insert_secs,submap_inserted,grid_grew,deadline_secs,deadline_met"
+    )?;
+    for r in records {
+        writeln!(
+            f,
+            "{},{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{:.6},{},{},{:.6},{}",
+            r.release_index,
+            r.sensor_time,
+            r.period,
+            r.wall_exec_secs,
+            r.cpu_exec_secs,
+            r.stage_filter_secs,
+            r.stage_correlative_secs,
+            r.stage_refine_secs,
+            r.stage_insert_secs,
+            r.submap_inserted,
+            r.grid_grew,
+            r.deadline_secs,
+            r.deadline_met
+        )?;
+    }
+    Ok(())
+}

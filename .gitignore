@@ -2,3 +2,4 @@
 c++/loki-*/
 c++/tests/build/
 rust/target
+rust/rust_workload/target
