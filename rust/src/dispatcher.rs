@@ -7,6 +7,12 @@ struct TaskParams
     wcet: u32,
     deadline: u32,
     period: u32,
+    // SCHED_DEADLINE configures a runtime/deadline/period budget but does not
+    // release jobs on its own -- the thread must explicitly signal "done with
+    // this job" (via sched_yield) to get parked until the next period. So the
+    // dispatcher needs to know how many job releases to run before the thread
+    // should exit and be joined.
+    num_jobs: u32,
 }
 
 pub trait EDFTask: Task
@@ -16,7 +22,7 @@ pub trait EDFTask: Task
         #[cfg(target_os = "linux")]
         {
             return std::thread::spawn(move || {
-                println!("Task thread started with params: wcet={}, deadline={}, period={}", params.wcet, params.deadline, params.period);
+                println!("Task thread started with params: wcet={}, deadline={}, period={}, num_jobs={}", params.wcet, params.deadline, params.period, params.num_jobs);
                 // sched_attr's runtime/deadline/period are in nanoseconds; TaskParams is in milliseconds.
                 let attr = libc::sched_attr {
                     size: std::mem::size_of::<libc::sched_attr>() as u32,
@@ -39,26 +45,52 @@ pub trait EDFTask: Task
                 // Wait here until the dispatcher unparks this thread to start the task.
                 std::thread::park();
 
-                Self::do_work();
+                // Persistent per-task state, constructed once and reused across
+                // every job release (see `Task::State`).
+                let mut state = <Self as Task>::State::default();
+                for _ in 0..params.num_jobs {
+                    Self::do_work(&mut state);
+                    // Signal completion of this job to SCHED_DEADLINE; the
+                    // kernel blocks this thread until the start of the next
+                    // period.
+                    let yield_ret = unsafe { libc::sched_yield() };
+                    if yield_ret != 0 {
+                        panic!("sched_yield failed: {}", std::io::Error::last_os_error());
+                    }
+                }
             });
         }
 
         #[cfg(not(target_os = "linux"))]
         {
-            let _ = params;
-            unimplemented!("SCHED_DEADLINE setup is only supported on Linux");
+            // No SCHED_DEADLINE off Linux, so this doesn't enforce real-time
+            // budgets -- but it still runs the same do_work-per-job-release
+            // loop, so the task's actual work is testable cross-platform.
+            return std::thread::spawn(move || {
+                println!(
+                    "Task thread started (non-Linux fallback, no SCHED_DEADLINE) with params: wcet={}, deadline={}, period={}, num_jobs={}",
+                    params.wcet, params.deadline, params.period, params.num_jobs
+                );
+
+                std::thread::park();
+
+                let mut state = <Self as Task>::State::default();
+                for _ in 0..params.num_jobs {
+                    Self::do_work(&mut state);
+                }
+            });
         }
     }
 }
 
 trait EDFTasklist
 {
-    fn setup() -> Vec<JoinHandle<()>>;
+    fn setup(num_jobs: u32) -> Vec<JoinHandle<()>>;
 }
 
 impl EDFTasklist for Nulltask
 {
-    fn setup() -> Vec<JoinHandle<()>> {
+    fn setup(_num_jobs: u32) -> Vec<JoinHandle<()>> {
         vec![]
     }
 }
@@ -66,19 +98,20 @@ impl EDFTasklist for Nulltask
 
 impl<T: Task + EDFTask, U: EDFTasklist> EDFTasklist for Tasklist<T, U>
 {
-    fn setup() -> Vec<JoinHandle<()>>
+    fn setup(num_jobs: u32) -> Vec<JoinHandle<()>>
     {
         let params = TaskParams {
             wcet: <<T as Task>::Wcet as Integer>::to_i32() as u32,
             deadline: <T::Deadline as Integer>::to_i32() as u32,
             period: <T::Period as Integer>::to_i32() as u32,
+            num_jobs,
         };
 
         // Set up the head task, and
         let handle =<T as EDFTask>::setup_task(params);
 
         // Recursively launch the rest
-        let mut remaining_handles = U::setup();
+        let mut remaining_handles = U::setup(num_jobs);
         remaining_handles.push(handle);
         remaining_handles
     }
@@ -88,7 +121,7 @@ impl<T: Task + EDFTask, U: EDFTasklist> EDFTasklist for Tasklist<T, U>
 // a dispatcher for the given task set under the given scheduling policy.
 trait DispatcherGenerator<Policy>
 {
-    fn generate_dispatcher();
+    fn generate_dispatcher(num_jobs: u32);
 }
 
 // Tags for different scheduling policies, so a dispatcher can be generated for a given task set
@@ -97,10 +130,10 @@ pub struct EDF;
 
 impl<T: Task + EDFTask, U: EDFTasklist> DispatcherGenerator<EDF> for Tasklist<T, U>
 {
-    fn generate_dispatcher()
+    fn generate_dispatcher(num_jobs: u32)
     {
         // Create a thread for each task and register them with the OS scheduler.
-        let handles = <Tasklist<T, U> as EDFTasklist>::setup();
+        let handles = <Tasklist<T, U> as EDFTasklist>::setup(num_jobs);
 
         // TODO: Start the tasks
         // schedule()
@@ -142,9 +175,9 @@ pub struct Dispatcher<Taskset, Policy, Analysis>(PhantomData<Taskset>, PhantomDa
 // Dispatcher::<ExampleTaskset, EDF, QPA>::dispatch() generates the dispatcher and dispatches the tasks.
 impl<Taskset: DispatcherGenerator<Policy>, Policy, Analysis> Dispatcher<Taskset, Policy, Analysis>
 {
-    pub fn dispatch()
+    pub fn dispatch(num_jobs: u32)
     {
         println!("Dispatcher::dispatch()...");
-        <Taskset as DispatcherGenerator<Policy>>::generate_dispatcher();
+        <Taskset as DispatcherGenerator<Policy>>::generate_dispatcher(num_jobs);
     }
 }

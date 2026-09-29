@@ -1,17 +1,11 @@
-mod config;
-mod extrapolator;
-mod filters;
-mod grid;
-mod scan_matching;
-mod sensor;
-mod workload;
-
 use clap::Parser;
-use config::Cli;
+use rt_slam_workload::config::{Cli, WorkloadConfig};
+use rt_slam_workload::workload;
 
 fn main() {
     let cli = Cli::parse();
-    let (records, summary) = workload::run(&cli);
+    let config = WorkloadConfig::from(&cli);
+    let (records, summary) = workload::run(config);
 
     if let Some(path) = &cli.output {
         match workload::write_csv(path, &records) {

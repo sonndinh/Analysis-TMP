@@ -12,8 +12,13 @@ pub trait Task
     type Wcet: Integer;
     type Deadline: Integer;
     type Period: Integer;
+    // Persistent per-task state, carried across repeated `do_work` calls (one
+    // call per job release -- SCHED_DEADLINE doesn't release jobs on its own,
+    // so the dispatcher calls `do_work` in a loop, reusing the same `State`
+    // instance each time). Stateless tasks use `State = ()`.
+    type State: Default;
 
-    fn do_work();
+    fn do_work(state: &mut Self::State);
 }
 
 pub struct Nulltask;
@@ -22,8 +27,9 @@ impl Task for Nulltask
     type Wcet = Z0;
     type Deadline = Z0;
     type Period = Z0;
+    type State = ();
 
-    fn do_work() {}
+    fn do_work(_state: &mut Self::State) {}
 }
 
 pub struct Tasklist<T, U>(PhantomData<T>, PhantomData<U>);

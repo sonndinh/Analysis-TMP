@@ -19,8 +19,8 @@ type P18000 = typenum::op!(P1000 * P18);
 type P31000 = typenum::op!(P1000 * P31);
 
 fn common_work() {
-    for i in 0..1_000_000 {
-        let _ = i * i;
+    for i in 0..1_000_000_i32 {
+        let _ = i.wrapping_mul(i);
     }
 }
 
@@ -49,8 +49,9 @@ fn test1() {
         type Wcet = P5;
         type Deadline = P10;
         type Period = P15;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -61,8 +62,9 @@ fn test1() {
         type Wcet = P7;
         type Deadline = P12;
         type Period = P14;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -100,7 +102,7 @@ fn test1() {
     type QpaResult = <(Task1, Tasklist<Task2, Nulltask>) as QPA>::Output;
     assert!(<QpaResult as Bit>::to_bool());
     println!("QPA result: {}", <QpaResult as Bit>::to_bool());
-    Dispatcher::<Taskset, EDF, QPATest>::dispatch();
+    Dispatcher::<Taskset, EDF, QPATest>::dispatch(3);
 
     thread::sleep(Duration::from_secs(1));
 }
@@ -112,9 +114,10 @@ fn test2() {
         type Wcet = P6000;
         type Deadline = P18000;
         type Period = P31000;
+        type State = ();
 
         // User specifies the actual work of the task
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -125,8 +128,9 @@ fn test2() {
         type Wcet = P2000;
         type Deadline = P9000;
         type Period = P9800;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -137,8 +141,9 @@ fn test2() {
         type Wcet = P1000;
         type Deadline = P12000;
         type Period = P17000;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -149,8 +154,9 @@ fn test2() {
         type Wcet = P90;
         type Deadline = P3000;
         type Period = P4200;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -161,8 +167,9 @@ fn test2() {
         type Wcet = P8;
         type Deadline = P10;
         type Period = P96;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -173,8 +180,9 @@ fn test2() {
         type Wcet = P2;
         type Deadline = P12;
         type Period = P16;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -185,8 +193,9 @@ fn test2() {
         type Wcet = P10;
         type Deadline = P19;
         type Period = P280;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -197,8 +206,9 @@ fn test2() {
         type Wcet = P26;
         type Deadline = P160;
         type Period = P660;
+        type State = ();
 
-        fn do_work() {
+        fn do_work(_state: &mut Self::State) {
             common_work();
         }
     }
@@ -242,7 +252,7 @@ fn test2() {
 
     // Dispatch the tasks in the set even though they are not schedulable.
     // This is just for testing purposes.
-    Dispatcher::<Taskset, EDF, QPATest>::dispatch();
+    Dispatcher::<Taskset, EDF, QPATest>::dispatch(3);
 
     thread::sleep(Duration::from_secs(1));
 

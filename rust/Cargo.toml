@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 typenum = "1.19.0"
+rt_slam_workload = { path = "rust_workload" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
