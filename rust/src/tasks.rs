@@ -1,6 +1,6 @@
 use crate::dispatcher::EDFTask;
 use crate::qpa::Task;
-use rt_slam_workload::workload::WorkloadState;
+use rt_slam_workload::workload::LocalSlamChain;
 use typenum::{P50, P100};
 
 /// Wraps the ported `LocalTrajectoryBuilder2D` real-time workload as a `Task`.
@@ -8,10 +8,11 @@ use typenum::{P50, P100};
 /// `Wcet`/`Deadline`/`Period` below are PLACEHOLDERS, not calibrated values --
 /// deriving a safe compile-time bound from an actual benchmark run of
 /// `rt_slam_workload` is deliberately deferred to a later step. This type
-/// exists to prove the wiring: one `do_work` call performs exactly one
-/// release of the ported pipeline, with all pipeline state (extrapolator,
-/// motion filter, active submaps, RNG, ...) persisted across calls via
-/// `WorkloadState`, matching the dispatcher's one-call-per-job-release model.
+/// still models the *whole* local-SLAM chain as a single `Task` (one
+/// `do_work` call = one release, i.e. Tasks 2-4 of the 4-task decomposition,
+/// preceded by however many Task-1 scan ticks it takes to produce a batch) --
+/// splitting it into 4 separate `Task` impls, one per decomposed stage, is
+/// the natural next step, not done here.
 pub struct LocalTrajectoryBuilderTask;
 
 impl Task for LocalTrajectoryBuilderTask {
@@ -21,10 +22,17 @@ impl Task for LocalTrajectoryBuilderTask {
     type Wcet = P50;
     type Deadline = P100;
     type Period = P100;
-    type State = WorkloadState;
+    type State = LocalSlamChain;
 
     fn do_work(state: &mut Self::State) {
-        state.step();
+        // Tick Task 1 until it produces a batch and the rest of the chain
+        // runs -- one do_work call is still exactly one release.
+        loop {
+            let (_scan_record, release_record) = state.tick();
+            if release_record.is_some() {
+                break;
+            }
+        }
     }
 }
 
