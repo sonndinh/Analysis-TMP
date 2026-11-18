@@ -19,12 +19,11 @@
 //!   pose), standing in for the data each stage's output hands to the next
 //!   stage's input.
 //!
-//! What this does NOT do: enforce precedence between tasks. If a downstream
-//! task's mailbox is empty when its `do_work` runs, that call is just a
-//! no-op for this job -- there is no notify/wait mechanism yet forcing, say,
-//! Scan Matching to run only after Filtering has produced this release's
-//! data. That runtime-ordering piece is separate, still-open work, distinct
-//! from the deadline/offset assignment the user is deferring.
+//! What this does NOT do: enforce precedence between tasks. Ordering comes
+//! from dispatching the tasks as a `dispatcher::Chain`, whose staggered
+//! deadlines make EDF (SCHED_DEADLINE, Linux only) run them in chain order.
+//! If a downstream task's mailbox is still empty when its `do_work` runs --
+//! off Linux, or after an upstream overrun -- that job is just a no-op.
 
 use nalgebra::Isometry2;
 use rt_slam_workload::config::WorkloadConfig;

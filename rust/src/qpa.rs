@@ -12,6 +12,9 @@ pub trait Task
     type Wcet: Integer;
     type Deadline: Integer;
     type Period: Integer;
+    // Release offset (ms) of the first job relative to the dispatch start.
+    // Runtime-only: the QPA analysis below does not use it.
+    const OFFSET: u32 = 0;
     // Persistent per-task state, carried across repeated `do_work` calls (one
     // call per job release -- SCHED_DEADLINE doesn't release jobs on its own,
     // so the dispatcher calls `do_work` in a loop, reusing the same `State`

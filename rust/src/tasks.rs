@@ -9,13 +9,18 @@ use rt_slam_workload::workload::{
 use std::sync::{Arc, Mutex};
 use typenum::{P50, P100};
 
-// `Wcet`/`Deadline`/`Period` on all four below are PLACEHOLDERS, not
-// calibrated values -- deriving real bounds from a benchmark run, and
-// assigning the staggered sub-deadlines the chain's precedence order needs,
-// is deliberately deferred. Task 1 is given the same placeholder period as
-// the other three for now even though its *true* period is the (generally
-// shorter) raw-scan period, not the release period -- they coincide at the
-// benchmark's default `num_accumulated_range_data = 1`, but won't in general.
+// Release pattern, derived from `WorkloadConfig::default()` (checked by the
+// `release_pattern_matches_default_config` test): Task 1 runs once per raw
+// scan (T1 = 1000 / scan_rate_hz); Tasks 2-4 run once per batch of
+// N = num_accumulated_range_data scans, with period N*T1 and offset (N-1)*T1
+// so their first release coincides with Task 1's Nth. Deadlines are implicit.
+// Dispatch the four as a `Chain` to enforce 1 -> 2 -> 3 -> 4 via EDF.
+//
+// `Wcet` is still a PLACEHOLDER -- calibrating it from benchmark runs is
+// deferred.
+type ScanPeriod = P100;
+type ReleasePeriod = P100;
+const RELEASE_OFFSET: u32 = 0;
 
 // ---------------------------------------------------------------------------
 // Task 1: Sync & Accumulate. Mirrors `AddRangeData`'s accumulation loop
@@ -41,8 +46,8 @@ pub struct SyncAccumulateJob;
 
 impl Task for SyncAccumulateJob {
     type Wcet = P50;
-    type Deadline = P100;
-    type Period = P100;
+    type Deadline = ScanPeriod;
+    type Period = ScanPeriod;
     type State = SyncAccumulateState;
 
     fn do_work(state: &mut Self::State) {
@@ -82,8 +87,9 @@ pub struct FilterJob;
 
 impl Task for FilterJob {
     type Wcet = P50;
-    type Deadline = P100;
-    type Period = P100;
+    type Deadline = ReleasePeriod;
+    type Period = ReleasePeriod;
+    const OFFSET: u32 = RELEASE_OFFSET;
     type State = FilterState;
 
     fn do_work(state: &mut Self::State) {
@@ -124,8 +130,9 @@ pub struct ScanMatchingJob;
 
 impl Task for ScanMatchingJob {
     type Wcet = P50;
-    type Deadline = P100;
-    type Period = P100;
+    type Deadline = ReleasePeriod;
+    type Period = ReleasePeriod;
+    const OFFSET: u32 = RELEASE_OFFSET;
     type State = ScanMatchingState;
 
     fn do_work(state: &mut Self::State) {
@@ -169,8 +176,9 @@ pub struct GridUpdateJob;
 
 impl Task for GridUpdateJob {
     type Wcet = P50;
-    type Deadline = P100;
-    type Period = P100;
+    type Deadline = ReleasePeriod;
+    type Period = ReleasePeriod;
+    const OFFSET: u32 = RELEASE_OFFSET;
     type State = GridUpdateState;
 
     fn do_work(state: &mut Self::State) {
@@ -187,9 +195,10 @@ impl EDFTask for GridUpdateJob {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dispatcher::{Dispatcher, EDF, QPATest};
+    use crate::dispatcher::{Chain, Dispatcher, EDF, QPATest};
     use crate::qpa::{Nulltask, Tasklist};
     use std::sync::Mutex as StdMutex;
+    use typenum::Integer;
 
     // The chain_state statics are process-global singletons (OnceLock), and
     // cargo test runs tests in parallel threads within one process by
@@ -226,16 +235,28 @@ mod tests {
         assert!(matched_mailbox().pop().is_none());
     }
 
-    /// Exercises the real dispatcher path (thread spawn, park/unpark, the
-    /// per-job-release do_work loop, join) for all 4 tasks together -- a
-    /// smoke test that independent concurrent dispatch doesn't crash. Not a
-    /// correctness test: with no precedence/notify mechanism yet, downstream
-    /// tasks may find empty mailboxes and no-op most jobs.
+    /// Exercises the real dispatcher path (thread spawn, start gate, offset
+    /// and periodic releases, join) for the 4 tasks dispatched as a `Chain`.
+    /// A smoke test, not an ordering check: off Linux there is no EDF
+    /// enforcement, so downstream tasks may find empty mailboxes and no-op.
     #[test]
     fn dispatches_through_the_full_edf_pipeline() {
         let _guard = TEST_SERIAL.lock().unwrap();
-        type Taskset =
-            Tasklist<SyncAccumulateJob, Tasklist<FilterJob, Tasklist<ScanMatchingJob, Tasklist<GridUpdateJob, Nulltask>>>>;
-        Dispatcher::<Taskset, EDF, QPATest>::dispatch(5);
+        type Taskset = Chain<
+            Tasklist<SyncAccumulateJob, Tasklist<FilterJob, Tasklist<ScanMatchingJob, Tasklist<GridUpdateJob, Nulltask>>>>,
+        >;
+        Dispatcher::<Taskset, EDF, QPATest>::dispatch(500);
+    }
+
+    #[test]
+    fn release_pattern_matches_default_config() {
+        let config = WorkloadConfig::default();
+        let scan_period_ms = (1000.0 / config.scan_rate_hz).round() as i32;
+        let n = config.num_accumulated_range_data as i32;
+
+        assert_eq!(<ScanPeriod as Integer>::to_i32(), scan_period_ms);
+        assert_eq!(<ReleasePeriod as Integer>::to_i32(), n * scan_period_ms);
+        assert_eq!(RELEASE_OFFSET as i32, (n - 1) * scan_period_ms);
+        assert_eq!(<SyncAccumulateJob as Task>::OFFSET, 0);
     }
 }

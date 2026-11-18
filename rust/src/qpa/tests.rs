@@ -102,7 +102,8 @@ fn test1() {
     type QpaResult = <(Task1, Tasklist<Task2, Nulltask>) as QPA>::Output;
     assert!(<QpaResult as Bit>::to_bool());
     println!("QPA result: {}", <QpaResult as Bit>::to_bool());
-    Dispatcher::<Taskset, EDF, QPATest>::dispatch(3);
+    // 45 ms covers 3-4 releases of each task (periods 15 and 14).
+    Dispatcher::<Taskset, EDF, QPATest>::dispatch(45);
 
     thread::sleep(Duration::from_secs(1));
 }
@@ -251,8 +252,9 @@ fn test2() {
     println!("QPA result: {}", <QpaResult as Bit>::to_bool());
 
     // Dispatch the tasks in the set even though they are not schedulable.
-    // This is just for testing purposes.
-    Dispatcher::<Taskset, EDF, QPATest>::dispatch(3);
+    // This is just for testing purposes. A short run keeps the test fast; the
+    // long-period tasks still get their first release.
+    Dispatcher::<Taskset, EDF, QPATest>::dispatch(50);
 
     thread::sleep(Duration::from_secs(1));
 
